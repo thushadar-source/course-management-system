@@ -1,3 +1,4 @@
+
 const db = require("../config/db");
 
 const Course = {
@@ -17,6 +18,17 @@ const Course = {
     const [rows] = await db.execute(
       "SELECT * FROM courses WHERE id = ?",
       [id]
+    );
+
+    return rows[0];
+  },
+
+
+  // Find course by title
+  async findByTitle(title) {
+    const [rows] = await db.execute(
+      "SELECT * FROM courses WHERE LOWER(title) = LOWER(?) LIMIT 1",
+      [title]
     );
 
     return rows[0];
@@ -108,3 +120,4 @@ const Course = {
 };
 
 module.exports = Course;
+

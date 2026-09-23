@@ -1,5 +1,8 @@
+
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import api from "../services/api";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
 import {
   FaEdit,
   FaEye,
@@ -8,11 +11,6 @@ import {
   FaTimes,
   FaTrash,
 } from "react-icons/fa";
-
-import api from "../services/api";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
-
 
 const EMPTY_COURSE = {
   title: "",
@@ -26,24 +24,12 @@ const EMPTY_COURSE = {
 
 const LEVEL_OPTIONS = ["Beginner", "Intermediate", "Advanced"];
 
-
-// Load the course list.
-async function fetchAllCourses() {
-  const response = await api.get("/courses");
-
-  return response.data.courses;
-}
-
-
 function ManageCourses() {
-
   const [courses, setCourses] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  // Form visibility + which course is being edited (null = adding new)
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
@@ -51,75 +37,57 @@ function ManageCourses() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const fetchCourses = async () => {
+    const response = await api.get("/courses");
+    setCourses(response.data.courses || []);
+  };
 
-  // ---------- Load the course list once, when the page opens ----------
   useEffect(() => {
-
     const loadCourses = async () => {
-
       try {
-
-        setCourses(await fetchAllCourses());
-
-      } catch (error) {
-
+        await fetchCourses();
+      } catch (err) {
         setError(
-          error.response?.data?.message ||
-          "Failed to load courses"
+          err.response?.data?.message || "Failed to load courses"
         );
-
       } finally {
-
         setLoading(false);
-
       }
     };
 
     loadCourses();
-
   }, []);
 
-
-  // ---------- Reload the list after a create / update / delete ----------
-  const refreshCourses = async () => {
-    setCourses(await fetchAllCourses());
-  };
-
-
-  // ---------- Form helpers ----------
-
   const handleChange = (event) => {
-
     const { name, value } = event.target;
 
-    setFormData({
-      ...formData,
+    setFormData((previous) => ({
+      ...previous,
       [name]: value,
-    });
+    }));
   };
-
 
   const openAddForm = () => {
     setShowForm(true);
     setEditingId(null);
-    setFormData(EMPTY_COURSE);
+    setFormData({ ...EMPTY_COURSE });
     setFormError("");
     setError("");
     setSuccess("");
   };
 
-
   const openEditForm = (course) => {
+    console.log("EDIT CLICKED", course);
+
     setShowForm(true);
     setEditingId(course.id);
 
-    // Fill the form with the existing course values.
     setFormData({
       title: course.title || "",
       category: course.category || "",
       level: course.level || "Beginner",
       duration: course.duration || "",
-      price: String(course.price ?? ""),
+      price: course.price ?? "",
       image: course.image || "",
       description: course.description || "",
     });
@@ -129,27 +97,20 @@ function ManageCourses() {
     setSuccess("");
   };
 
-
   const closeForm = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData(EMPTY_COURSE);
+    setFormData({ ...EMPTY_COURSE });
     setFormError("");
   };
 
-
-  // ---------- Create / Update ----------
   const handleSubmit = async (event) => {
-
-    // Stop the browser from reloading the page
     event.preventDefault();
 
     setFormError("");
     setError("");
     setSuccess("");
 
-
-    // ---------- Client side validation ----------
     if (
       !formData.title.trim() ||
       !formData.category.trim() ||
@@ -160,7 +121,7 @@ function ManageCourses() {
     }
 
     if (!formData.duration.trim()) {
-      setFormError("Duration is required (for example: 8 Weeks).");
+      setFormError("Duration is required.");
       return;
     }
 
@@ -169,9 +130,7 @@ function ManageCourses() {
       return;
     }
 
-
-    // The backend expects price to be a number
-    const coursePayload = {
+    const data = {
       title: formData.title.trim(),
       category: formData.category.trim(),
       level: formData.level,
@@ -181,55 +140,32 @@ function ManageCourses() {
       description: formData.description.trim(),
     };
 
-
     setSaving(true);
 
     try {
+      let response;
 
       if (editingId) {
-
-        // ---------- Update an existing course ----------
-        const response = await api.put(
-          `/courses/${editingId}`,
-          coursePayload
-        );
-
-        setSuccess(response.data.message);
-
+        response = await api.put(`/courses/${editingId}`, data);
       } else {
-
-        // ---------- Create a new course ----------
-        const response = await api.post("/courses", coursePayload);
-
-        setSuccess(response.data.message);
-
+        response = await api.post("/courses", data);
       }
 
+      setSuccess(response.data.message || "Course saved successfully.");
+
       closeForm();
-
-      // Show fresh data from the backend
-      await refreshCourses();
-
-    } catch (error) {
-
-      // 400 = the backend rejected the data
+      await fetchCourses();
+    } catch (err) {
       setFormError(
-        error.response?.data?.message ||
-        "Could not save the course. Please try again."
+        err.response?.data?.message ||
+          "Could not save the course."
       );
-
     } finally {
-
       setSaving(false);
-
     }
   };
 
-
-  // ---------- Delete ----------
   const handleDelete = async (course) => {
-
-    // Always confirm before a destructive action
     const confirmed = window.confirm(
       `Delete "${course.title}"? This cannot be undone.`
     );
@@ -238,44 +174,31 @@ function ManageCourses() {
       return;
     }
 
-    setError("");
-    setSuccess("");
-
     try {
-
       const response = await api.delete(`/courses/${course.id}`);
 
-      setSuccess(response.data.message);
+      setSuccess(response.data.message || "Course deleted successfully.");
+      setError("");
 
-      await refreshCourses();
-
-    } catch (error) {
-
+      await fetchCourses();
+    } catch (err) {
       setError(
-        error.response?.data?.message ||
-        "Could not delete the course."
+        err.response?.data?.message ||
+          "Could not delete the course."
       );
-
     }
   };
 
-
-
   return (
-
     <>
       <Navbar />
 
       <div className="container">
-
         <div className="page-header">
-
           <div>
             <h1>Manage Courses</h1>
-
             <p className="page-subtitle">
-              Add new courses, update the existing ones, or remove courses
-              that are no longer offered.
+              Add new courses, update existing courses, or remove courses.
             </p>
           </div>
 
@@ -287,35 +210,22 @@ function ManageCourses() {
             {showForm ? <FaTimes /> : <FaPlus />}
             {showForm ? "Cancel" : "Add Course"}
           </button>
-
         </div>
-
-
-        {/* ---------- Success / error messages ---------- */}
 
         {success && <p className="success">{success}</p>}
 
         {error && <p className="error">{error}</p>}
 
-
-        {/* ---------- Add / Edit form ---------- */}
-
         {showForm && (
-
           <section className="section-card">
-
             <div className="section-card-header">
               <h2>{editingId ? "Edit Course" : "New Course"}</h2>
             </div>
 
-
             <form className="form" onSubmit={handleSubmit}>
-
               <div className="form-row">
-
                 <div className="form-group">
                   <label htmlFor="title">Title *</label>
-
                   <input
                     id="title"
                     className="input"
@@ -327,10 +237,8 @@ function ManageCourses() {
                   />
                 </div>
 
-
                 <div className="form-group">
                   <label htmlFor="category">Category *</label>
-
                   <input
                     id="category"
                     className="input"
@@ -341,15 +249,11 @@ function ManageCourses() {
                     placeholder="e.g. Frontend"
                   />
                 </div>
-
               </div>
 
-
               <div className="form-row">
-
                 <div className="form-group">
                   <label htmlFor="level">Level *</label>
-
                   <select
                     id="level"
                     className="input"
@@ -365,10 +269,8 @@ function ManageCourses() {
                   </select>
                 </div>
 
-
                 <div className="form-group">
                   <label htmlFor="duration">Duration *</label>
-
                   <input
                     id="duration"
                     className="input"
@@ -380,10 +282,8 @@ function ManageCourses() {
                   />
                 </div>
 
-
                 <div className="form-group">
                   <label htmlFor="price">Price (Rs.) *</label>
-
                   <input
                     id="price"
                     className="input"
@@ -396,13 +296,10 @@ function ManageCourses() {
                     placeholder="e.g. 25000"
                   />
                 </div>
-
               </div>
-
 
               <div className="form-group">
                 <label htmlFor="image">Image URL</label>
-
                 <input
                   id="image"
                   className="input"
@@ -414,10 +311,8 @@ function ManageCourses() {
                 />
               </div>
 
-
               <div className="form-group">
                 <label htmlFor="description">Description</label>
-
                 <textarea
                   id="description"
                   className="input"
@@ -429,12 +324,9 @@ function ManageCourses() {
                 />
               </div>
 
-
               {formError && <p className="error">{formError}</p>}
 
-
               <div className="form-actions">
-
                 <button
                   type="submit"
                   className="btn btn-primary"
@@ -444,8 +336,8 @@ function ManageCourses() {
                   {saving
                     ? "Saving..."
                     : editingId
-                      ? "Update Course"
-                      : "Create Course"}
+                    ? "Update Course"
+                    : "Create Course"}
                 </button>
 
                 <button
@@ -457,32 +349,29 @@ function ManageCourses() {
                   <FaTimes />
                   Cancel
                 </button>
-
               </div>
-
             </form>
-
           </section>
-
         )}
 
-
-
-        {/* ---------- Course table ---------- */}
-
         <section className="section-card">
-
           <div className="section-card-header">
-            <h2>All Courses{courses.length > 0 ? ` (${courses.length})` : ""}</h2>
+            <h2>
+              All Courses
+              {courses.length > 0 ? ` (${courses.length})` : ""}
+            </h2>
 
-            <Link to="/admin/enrollments" className="link-inline">
+            <a
+              href="/admin/enrollments"
+              className="link-inline"
+            >
               <FaEye /> Manage enrollments
-            </Link>
+            </a>
           </div>
 
-
-          {loading && <p className="loading">Loading courses...</p>}
-
+          {loading && (
+            <p className="loading">Loading courses...</p>
+          )}
 
           {!loading && courses.length === 0 && (
             <p className="empty">
@@ -490,13 +379,9 @@ function ManageCourses() {
             </p>
           )}
 
-
           {!loading && courses.length > 0 && (
-
             <div className="table-wrapper">
-
               <table className="table">
-
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -506,16 +391,13 @@ function ManageCourses() {
                     <th>Level</th>
                     <th>Duration</th>
                     <th>Price</th>
-                    <th className="table-actions-column">Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
                 <tbody>
-
                   {courses.map((course) => (
-
                     <tr key={course.id}>
-
                       <td>{course.id}</td>
 
                       <td>
@@ -527,7 +409,6 @@ function ManageCourses() {
                       </td>
 
                       <td>{course.title}</td>
-
                       <td>{course.category}</td>
 
                       <td>
@@ -542,7 +423,6 @@ function ManageCourses() {
 
                       <td>
                         <div className="table-actions">
-
                           <button
                             type="button"
                             className="btn btn-small btn-outline"
@@ -560,28 +440,18 @@ function ManageCourses() {
                             <FaTrash />
                             Delete
                           </button>
-
                         </div>
                       </td>
-
                     </tr>
-
                   ))}
-
                 </tbody>
-
               </table>
-
             </div>
-
           )}
-
         </section>
-
       </div>
 
       <Footer />
-
     </>
   );
 }

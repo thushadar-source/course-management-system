@@ -1,3 +1,4 @@
+
 const Course = require("../models/courseModel");
 const User = require("../models/userModel");
 
@@ -62,17 +63,23 @@ const createCourse = async (req, res) => {
       description,
     } = req.body;
 
-    // Basic validation
-    if (!title || !category || !level) {
-      return res.status(400).json({
-        message: "Title, category and level are required",
+    // Check for duplicate course title
+    const existingCourse = await Course.findByTitle(title.trim());
+
+    if (existingCourse) {
+      return res.status(409).json({
+        success: false,
+        message: "Course title already exists",
+        errors: {
+          title: "A course with this title already exists",
+        },
       });
     }
 
     const courseId = await Course.create({
-      title,
-      category,
-      level,
+      title: title.trim(),
+      category: category.trim(),
+      level: level.trim(),
       duration,
       price,
       image,
@@ -80,6 +87,7 @@ const createCourse = async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: "Course created successfully",
       courseId,
     });
@@ -88,6 +96,7 @@ const createCourse = async (req, res) => {
     console.error("Error creating course:", error.message);
 
     res.status(500).json({
+      success: false,
       message: "Internal server error",
     });
   }
@@ -114,14 +123,28 @@ const updateCourse = async (req, res) => {
 
     if (!existingCourse) {
       return res.status(404).json({
+        success: false,
         message: "Course not found",
       });
     }
 
+    // Check for duplicate title
+    const duplicateCourse = await Course.findByTitle(title.trim());
+
+    if (duplicateCourse && duplicateCourse.id !== Number(id)) {
+      return res.status(409).json({
+        success: false,
+        message: "Course title already exists",
+        errors: {
+          title: "A course with this title already exists",
+        },
+      });
+    }
+
     await Course.update(id, {
-      title,
-      category,
-      level,
+      title: title.trim(),
+      category: category.trim(),
+      level: level.trim(),
       duration,
       price,
       image,
@@ -132,6 +155,7 @@ const updateCourse = async (req, res) => {
     const updatedCourse = await Course.getById(id);
 
     res.status(200).json({
+      success: true,
       message: "Course updated successfully",
       course: updatedCourse,
     });
@@ -140,6 +164,7 @@ const updateCourse = async (req, res) => {
     console.error("Error updating course:", error.message);
 
     res.status(500).json({
+      success: false,
       message: "Internal server error",
     });
   }
@@ -197,6 +222,7 @@ const getStats = async (req, res) => {
   }
 };
 
+
 module.exports = {
   getAllCourses,
   getCourseById,
@@ -205,3 +231,4 @@ module.exports = {
   deleteCourse,
   getStats,
 };
+
