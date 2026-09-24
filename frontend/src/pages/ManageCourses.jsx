@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import api from "../services/api";
 import Navbar from "../components/Navbar";
@@ -36,6 +35,13 @@ function ManageCourses() {
   const [formData, setFormData] = useState(EMPTY_COURSE);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // CR-003: Search, Filter and Sort states
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [levelFilter, setLevelFilter] = useState("All");
+  const [sortField, setSortField] = useState(null);
+  const [sortDirection, setSortDirection] = useState("asc");
 
   const fetchCourses = async () => {
     const response = await api.get("/courses");
@@ -177,7 +183,9 @@ function ManageCourses() {
     try {
       const response = await api.delete(`/courses/${course.id}`);
 
-      setSuccess(response.data.message || "Course deleted successfully.");
+      setSuccess(
+        response.data.message || "Course deleted successfully."
+      );
       setError("");
 
       await fetchCourses();
@@ -187,6 +195,107 @@ function ManageCourses() {
           "Could not delete the course."
       );
     }
+  };
+
+  // CR-003: Get unique categories
+  const categories = [
+    "All",
+    ...new Set(
+      courses
+        .map((course) => course.category)
+        .filter(Boolean)
+    ),
+  ];
+
+  // CR-003: Search and filtering
+  const filteredCourses = courses.filter((course) => {
+    const search = searchTerm.trim().toLowerCase();
+
+    const matchesSearch =
+      !search ||
+      String(course.id ?? "")
+        .toLowerCase()
+        .includes(search) ||
+      String(course.title ?? "")
+        .toLowerCase()
+        .includes(search) ||
+      String(course.category ?? "")
+        .toLowerCase()
+        .includes(search);
+
+    const matchesCategory =
+      categoryFilter === "All" ||
+      String(course.category ?? "").toLowerCase() ===
+        categoryFilter.toLowerCase();
+
+    const matchesLevel =
+      levelFilter === "All" ||
+      String(course.level ?? "").toLowerCase() ===
+        levelFilter.toLowerCase();
+
+    return (
+      matchesSearch &&
+      matchesCategory &&
+      matchesLevel
+    );
+  });
+
+  // CR-003: Sorting
+  const sortedCourses = [...filteredCourses].sort((a, b) => {
+    if (!sortField) {
+      return 0;
+    }
+
+    let first = a[sortField];
+    let second = b[sortField];
+
+    if (sortField === "price" || sortField === "id") {
+      first = Number(first) || 0;
+      second = Number(second) || 0;
+    } else {
+      first = String(first ?? "").toLowerCase();
+      second = String(second ?? "").toLowerCase();
+    }
+
+    if (first < second) {
+      return sortDirection === "asc" ? -1 : 1;
+    }
+
+    if (first > second) {
+      return sortDirection === "asc" ? 1 : -1;
+    }
+
+    return 0;
+  });
+
+  // CR-003: Handle column sorting
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection((previous) =>
+        previous === "asc" ? "desc" : "asc"
+      );
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  // CR-003: Sorting indicator
+  const getSortIndicator = (field) => {
+    if (sortField !== field) {
+      return "";
+    }
+
+    return sortDirection === "asc" ? " ↑" : " ↓";
+  };
+
+  // CR-003: Reset search, filters and sorting
+  const resetFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter("All");
+    setLevelFilter("All");
+    setSortField(null);
+    setSortDirection("asc");
   };
 
   return (
@@ -380,73 +489,228 @@ function ManageCourses() {
           )}
 
           {!loading && courses.length > 0 && (
-            <div className="table-wrapper">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Image</th>
-                    <th>Title</th>
-                    <th>Category</th>
-                    <th>Level</th>
-                    <th>Duration</th>
-                    <th>Price</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
+            <>
+              {/* CR-003: Search and Filter Controls */}
+              <div className="course-controls">
+                <div className="form-group">
+                  <label htmlFor="course-search">
+                    Search Courses
+                  </label>
 
-                <tbody>
-                  {courses.map((course) => (
-                    <tr key={course.id}>
-                      <td>{course.id}</td>
+                  <input
+                    id="course-search"
+                    className="input"
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) =>
+                      setSearchTerm(event.target.value)
+                    }
+                    placeholder="Search by title, category or course ID..."
+                  />
+                </div>
 
-                      <td>
-                        <img
-                          src={course.image}
-                          alt={course.title}
-                          className="table-thumb"
-                        />
-                      </td>
+                <div className="form-group">
+                  <label htmlFor="category-filter">
+                    Category
+                  </label>
 
-                      <td>{course.title}</td>
-                      <td>{course.category}</td>
+                  <select
+                    id="category-filter"
+                    className="input"
+                    value={categoryFilter}
+                    onChange={(event) =>
+                      setCategoryFilter(event.target.value)
+                    }
+                  >
+                    {categories.map((category) => (
+                      <option
+                        key={category}
+                        value={category}
+                      >
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                      <td>
-                        <span className="tag tag-level">
-                          {course.level}
-                        </span>
-                      </td>
+                <div className="form-group">
+                  <label htmlFor="level-filter">
+                    Level
+                  </label>
 
-                      <td>{course.duration}</td>
+                  <select
+                    id="level-filter"
+                    className="input"
+                    value={levelFilter}
+                    onChange={(event) =>
+                      setLevelFilter(event.target.value)
+                    }
+                  >
+                    <option value="All">All</option>
 
-                      <td>Rs. {course.price}</td>
+                    {LEVEL_OPTIONS.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                      <td>
-                        <div className="table-actions">
+                <div className="course-filter-actions">
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={resetFilters}
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              </div>
+
+              {/* CR-003: Result Counter */}
+              <div className="course-result-info">
+                Showing {sortedCourses.length} of {courses.length} courses
+              </div>
+
+              {/* CR-003: No Results */}
+              {sortedCourses.length === 0 ? (
+                <p className="empty">
+                  No courses found matching your search or filter criteria.
+                </p>
+              ) : (
+                <div className="table-wrapper">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>
                           <button
                             type="button"
-                            className="btn btn-small btn-outline"
-                            onClick={() => openEditForm(course)}
+                            className="sort-button"
+                            onClick={() => handleSort("id")}
                           >
-                            <FaEdit />
-                            Edit
+                            ID{getSortIndicator("id")}
                           </button>
+                        </th>
 
+                        <th>Image</th>
+
+                        <th>
                           <button
                             type="button"
-                            className="btn btn-small btn-danger"
-                            onClick={() => handleDelete(course)}
+                            className="sort-button"
+                            onClick={() => handleSort("title")}
                           >
-                            <FaTrash />
-                            Delete
+                            Title{getSortIndicator("title")}
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        </th>
+
+                        <th>
+                          <button
+                            type="button"
+                            className="sort-button"
+                            onClick={() =>
+                              handleSort("category")
+                            }
+                          >
+                            Category{getSortIndicator("category")}
+                          </button>
+                        </th>
+
+                        <th>
+                          <button
+                            type="button"
+                            className="sort-button"
+                            onClick={() => handleSort("level")}
+                          >
+                            Level{getSortIndicator("level")}
+                          </button>
+                        </th>
+
+                        <th>
+                          <button
+                            type="button"
+                            className="sort-button"
+                            onClick={() =>
+                              handleSort("duration")
+                            }
+                          >
+                            Duration{getSortIndicator("duration")}
+                          </button>
+                        </th>
+
+                        <th>
+                          <button
+                            type="button"
+                            className="sort-button"
+                            onClick={() => handleSort("price")}
+                          >
+                            Price{getSortIndicator("price")}
+                          </button>
+                        </th>
+
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {sortedCourses.map((course) => (
+                        <tr key={course.id}>
+                          <td>{course.id}</td>
+
+                          <td>
+                            <img
+                              src={course.image}
+                              alt={course.title}
+                              className="table-thumb"
+                            />
+                          </td>
+
+                          <td>{course.title}</td>
+
+                          <td>{course.category}</td>
+
+                          <td>
+                            <span className="tag tag-level">
+                              {course.level}
+                            </span>
+                          </td>
+
+                          <td>{course.duration}</td>
+
+                          <td>Rs. {course.price}</td>
+
+                          <td>
+                            <div className="table-actions">
+                              <button
+                                type="button"
+                                className="btn btn-small btn-outline"
+                                onClick={() =>
+                                  openEditForm(course)
+                                }
+                              >
+                                <FaEdit />
+                                Edit
+                              </button>
+
+                              <button
+                                type="button"
+                                className="btn btn-small btn-danger"
+                                onClick={() =>
+                                  handleDelete(course)
+                                }
+                              >
+                                <FaTrash />
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           )}
         </section>
       </div>
@@ -457,4 +721,3 @@ function ManageCourses() {
 }
 
 export default ManageCourses;
-
