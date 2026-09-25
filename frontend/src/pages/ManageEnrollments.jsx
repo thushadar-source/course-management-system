@@ -1,337 +1,338 @@
-import { useEffect, useState } from "react";
-import { FaTrash } from "react-icons/fa";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { FaSearch } from "react-icons/fa";
 
 import api from "../services/api";
+import { getUser } from "../services/auth";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
-
-function ManageEnrollments() {
-
-  // Course list - used to fill the "filter by course" dropdown
-  const [courses, setCourses] = useState([]);
-
-  // "" means "show every enrollment"
-  const [selectedCourseId, setSelectedCourseId] = useState("");
-
-  // The enrollments currently shown in the table
+function MyEnrollments() {
   const [enrollments, setEnrollments] = useState([]);
-
-  // When one course is selected the backend also returns the course
-  const [selectedCourse, setSelectedCourse] = useState(null);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [sortOption, setSortOption] = useState("newest");
 
-  // Changing this number tells the effect below to reload the table.
-  // We use it after a delete so the table shows fresh data.
-  const [reloadKey, setReloadKey] = useState(0);
+  const user = getUser();
 
-
-  // ---------- Load the course dropdown options (once) ----------
   useEffect(() => {
-
-    const loadCourseOptions = async () => {
-
+    const getEnrollments = async () => {
       try {
+        const response = await api.get("/enrollments/my");
 
-        const response = await api.get("/courses");
-
-        setCourses(response.data.courses);
-
+        setEnrollments(response.data.enrollments || []);
       } catch (error) {
-
-        // The dropdown is optional, so a failure here is not fatal.
-        console.error("Could not load course options:", error.message);
-
-      }
-    };
-
-    loadCourseOptions();
-
-  }, []);
-
-
-  // ---------- Load the enrollment table ----------
-  
-  useEffect(() => {
-
-    const loadEnrollments = async () => {
-
-      setLoading(true);
-      setError("");
-
-      try {
-
-        if (selectedCourseId === "") {
-
-          // ---- All enrollments ----
-          const response = await api.get("/enrollments");
-
-          setEnrollments(response.data.enrollments);
-          setSelectedCourse(null);
-
-        } else {
-
-          // ---- Students enrolled in one course ----
-          const response = await api.get(
-            `/enrollments/course/${selectedCourseId}`
-          );
-
-          setEnrollments(response.data.enrollments);
-          setSelectedCourse(response.data.course);
-
-        }
-
-      } catch (error) {
-
         setError(
           error.response?.data?.message ||
-          "Failed to load enrollments"
+            "Failed to load your enrollments"
         );
-
-        setEnrollments([]);
-
       } finally {
-
         setLoading(false);
-
       }
     };
 
-    loadEnrollments();
+    getEnrollments();
+  }, []);
 
-  }, [selectedCourseId, reloadKey]);
+  // Safe price conversion
+  const getSafePrice = (price) => {
+    const numericPrice = Number(price);
 
-
-  // ---------- Delete an enrollment ----------
-  const handleDelete = async (enrollment) => {
-
-    const confirmed = window.confirm(
-      `Remove ${enrollment.full_name || enrollment.username}${
-        enrollment.title ? ` from "${enrollment.title}"` : ""
-      }?`
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-
-    try {
-
-      const response = await api.delete(`/enrollments/${enrollment.id}`);
-
-      setSuccess(response.data.message);
-
-      // Ask the effect above to reload the table
-      setReloadKey(reloadKey + 1);
-
-    } catch (error) {
-
-      setError(
-        error.response?.data?.message ||
-        "Could not delete the enrollment."
-      );
-
-    }
+    return Number.isFinite(numericPrice) ? numericPrice : 0;
   };
 
+  // Summary values
+  const totalEnrolledCourses = enrollments.length;
 
+  const totalCourseValue = enrollments.reduce(
+    (total, enrollment) => {
+      return total + getSafePrice(enrollment.price);
+    },
+    0
+  );
+
+  const averageCoursePrice =
+    totalEnrolledCourses > 0
+      ? totalCourseValue / totalEnrolledCourses
+      : 0;
+
+  const distinctCategories = new Set(
+    enrollments
+      .map((enrollment) => enrollment.category)
+      .filter((category) => category)
+  ).size;
+
+  // Sorting
+  const sortedEnrollments = useMemo(() => {
+    const sorted = [...enrollments];
+
+    switch (sortOption) {
+      case "oldest":
+        return sorted.sort(
+          (a, b) =>
+            new Date(a.enrolled_at || 0) -
+            new Date(b.enrolled_at || 0)
+        );
+
+      case "priceHigh":
+        return sorted.sort(
+          (a, b) =>
+            getSafePrice(b.price) -
+            getSafePrice(a.price)
+        );
+
+      case "priceLow":
+        return sorted.sort(
+          (a, b) =>
+            getSafePrice(a.price) -
+            getSafePrice(b.price)
+        );
+
+      case "titleAZ":
+        return sorted.sort((a, b) => {
+          const titleA = String(a.title || "").toLowerCase();
+          const titleB = String(b.title || "").toLowerCase();
+
+          return titleA.localeCompare(titleB);
+        });
+
+      case "newest":
+      default:
+        return sorted.sort(
+          (a, b) =>
+            new Date(b.enrolled_at || 0) -
+            new Date(a.enrolled_at || 0)
+        );
+    }
+  }, [enrollments, sortOption]);
+
+  // Format date
   const formatDate = (value) => {
     if (!value) return "-";
 
-    return new Date(value).toLocaleDateString();
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return "-";
+    }
+
+    return date.toLocaleDateString();
   };
 
-
   return (
-
     <>
       <Navbar />
 
       <div className="container">
 
         <div className="page-header">
-
           <div>
-            <h1>Manage Enrollments</h1>
+            <h1>My Enrollments</h1>
 
             <p className="page-subtitle">
-              See who is enrolled in what, and remove enrollments when
-              needed.
+              {user?.full_name
+                ? `${user.full_name}, these are the courses you are enrolled in.`
+                : "These are the courses you are enrolled in."}
             </p>
           </div>
 
+          <Link to="/courses" className="btn btn-primary">
+            <FaSearch />
+            Browse More Courses
+          </Link>
         </div>
 
+        {/* Loading */}
+        {loading && (
+          <p className="loading">
+            Loading your enrollments...
+          </p>
+        )}
 
-        {/* ---------- Filter by course ---------- */}
+        {/* Error */}
+        {error && !loading && (
+          <p className="error">{error}</p>
+        )}
 
-        <div className="filter-bar">
+        {!loading && !error && (
+          <>
+            {/* Summary */}
+            <div className="enrollment-summary">
 
-          <div className="form-group">
+              <div className="summary-card">
+                <h3>Total Enrolled Courses</h3>
+                <p>{totalEnrolledCourses}</p>
+              </div>
 
-            <label htmlFor="courseFilter">
-              Show enrollments for
-            </label>
+              <div className="summary-card">
+                <h3>Total Course Value</h3>
+                <p>
+                  Rs. {totalCourseValue.toFixed(2)}
+                </p>
+              </div>
 
-            <select
-              id="courseFilter"
-              className="input"
-              value={selectedCourseId}
-              onChange={(event) => {
-                setSuccess("");
-                setSelectedCourseId(event.target.value);
-              }}
-            >
-              <option value="">All courses</option>
+              <div className="summary-card">
+                <h3>Average Course Price</h3>
+                <p>
+                  Rs. {averageCoursePrice.toFixed(2)}
+                </p>
+              </div>
 
-              {courses.map((course) => (
-                <option key={course.id} value={course.id}>
-                  {course.title}
-                </option>
-              ))}
-
-            </select>
-
-          </div>
-
-        </div>
-
-
-        {/* ---------- Messages ---------- */}
-
-        {success && <p className="success">{success}</p>}
-
-        {error && <p className="error">{error}</p>}
-
-
-        {/* ---------- Table ---------- */}
-
-        <section className="section-card">
-
-          <div className="section-card-header">
-
-            <h2>
-              {selectedCourse
-                ? `Students enrolled in "${selectedCourse.title}"`
-                : "All Enrollments"}
-              {!loading && ` (${enrollments.length})`}
-            </h2>
-
-          </div>
-
-
-          {loading && <p className="loading">Loading enrollments...</p>}
-
-
-          {!loading && enrollments.length === 0 && (
-            <p className="empty">
-              {selectedCourseId === ""
-                ? "No enrollments have been made yet."
-                : "No students are enrolled in this course yet."}
-            </p>
-          )}
-
-
-          {!loading && enrollments.length > 0 && (
-            <div className="table-wrapper">
-
-              <table className="table">
-
-                <thead>
-
-                  {selectedCourseId === "" ? (
-
-                    /* ---------- All enrollments ---------- */
-                    <tr>
-                      <th>Student</th>
-                      <th>Username</th>
-                      <th>Course</th>
-                      <th>Category</th>
-                      <th>Level</th>
-                      <th>Enrolled On</th>
-                      <th className="table-actions-column">Actions</th>
-                    </tr>
-
-                  ) : (
-
-                    /* ---------- One course ---------- */
-                    <tr>
-                      <th>Student</th>
-                      <th>Username</th>
-                      <th>Enrolled On</th>
-                      <th className="table-actions-column">Actions</th>
-                    </tr>
-
-                  )}
-
-                </thead>
-
-
-                <tbody>
-
-                  {enrollments.map((enrollment) => (
-
-                    <tr key={enrollment.id}>
-
-                      <td>{enrollment.full_name}</td>
-
-                      <td>{enrollment.username}</td>
-
-
-                      {/* These columns only exist in "all courses" mode */}
-                      {selectedCourseId === "" && (
-                        <>
-                          <td>{enrollment.title}</td>
-                          <td>{enrollment.category}</td>
-                          <td>
-                            <span className="tag tag-level">
-                              {enrollment.level}
-                            </span>
-                          </td>
-                        </>
-                      )}
-
-
-                      <td>{formatDate(enrollment.enrolled_at)}</td>
-
-
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-small btn-danger"
-                          onClick={() => handleDelete(enrollment)}
-                        >
-                          <FaTrash />
-                          Remove
-                        </button>
-                      </td>
-
-                    </tr>
-
-                  ))}
-
-                </tbody>
-
-              </table>
+              <div className="summary-card">
+                <h3>Course Categories</h3>
+                <p>{distinctCategories}</p>
+              </div>
 
             </div>
-          )}
 
-        </section>
+            {/* Sorting */}
+            <div className="enrollment-controls">
+
+              <label htmlFor="enrollment-sort">
+                <strong>Sort By:</strong>
+              </label>
+
+              <select
+                id="enrollment-sort"
+                value={sortOption}
+                onChange={(e) =>
+                  setSortOption(e.target.value)
+                }
+              >
+                <option value="newest">
+                  Newest Enrolled
+                </option>
+
+                <option value="oldest">
+                  Oldest Enrolled
+                </option>
+
+                <option value="priceHigh">
+                  Price: High to Low
+                </option>
+
+                <option value="priceLow">
+                  Price: Low to High
+                </option>
+
+                <option value="titleAZ">
+                  Course Title: A to Z
+                </option>
+              </select>
+
+            </div>
+
+            {/* Empty state */}
+            {enrollments.length === 0 && (
+              <div className="empty-box">
+
+                <p className="empty">
+                  You are not enrolled in any courses yet.
+                </p>
+
+                <Link
+                  to="/courses"
+                  className="btn btn-primary"
+                >
+                  <FaSearch />
+                  Find a Course
+                </Link>
+
+              </div>
+            )}
+
+            {/* Course cards */}
+            {sortedEnrollments.length > 0 && (
+              <div className="course-grid">
+
+                {sortedEnrollments.map((enrollment) => (
+                  <article
+                    className="course-card"
+                    key={enrollment.id}
+                  >
+
+                    <img
+                      src={enrollment.image}
+                      alt={enrollment.title}
+                      className="course-card-image"
+                      loading="lazy"
+                    />
+
+                    <div className="course-card-body">
+
+                      <div className="course-card-tags">
+
+                        <span className="tag tag-category">
+                          {enrollment.category}
+                        </span>
+
+                        <span className="tag tag-level">
+                          {enrollment.level}
+                        </span>
+
+                      </div>
+
+                      <h3 className="course-card-title">
+                        {enrollment.title}
+                      </h3>
+
+                      <p className="course-card-summary">
+                        {(enrollment.description || "").slice(
+                          0,
+                          100
+                        )}
+
+                        {(enrollment.description || "").length >
+                        100
+                          ? "..."
+                          : ""}
+                      </p>
+
+                      <ul className="course-card-meta">
+
+                        <li>
+                          <strong>Duration:</strong>{" "}
+                          {enrollment.duration || "-"}
+                        </li>
+
+                        <li>
+                          <strong>Price:</strong>{" "}
+                          Rs.{" "}
+                          {getSafePrice(
+                            enrollment.price
+                          ).toFixed(2)}
+                        </li>
+
+                        <li>
+                          <strong>Enrolled on:</strong>{" "}
+                          {formatDate(
+                            enrollment.enrolled_at
+                          )}
+                        </li>
+
+                      </ul>
+
+                      <Link
+                        to={`/courses/${enrollment.course_id}`}
+                        className="btn btn-outline btn-block"
+                      >
+                        View Course
+                      </Link>
+
+                    </div>
+                  </article>
+                ))}
+
+              </div>
+            )}
+          </>
+        )}
 
       </div>
 
       <Footer />
-
     </>
   );
 }
 
-export default ManageEnrollments;
-
+export default MyEnrollments;
