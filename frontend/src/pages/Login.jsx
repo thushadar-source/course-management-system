@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FaSearch, FaSignInAlt } from "react-icons/fa";
 
@@ -6,29 +6,38 @@ import api from "../services/api";
 import { saveAuth } from "../services/auth";
 import Navbar from "../components/Navbar";
 
-
 function Login() {
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
 
   const redirectTo = location.state?.from;
 
+  // Check whether Login was reached because of session expiry.
+  useEffect(() => {
+    const expired =
+      sessionStorage.getItem("sessionExpired");
+
+    if (expired === "true") {
+      setSessionExpired(true);
+
+      // Remove the flag so the message is not shown
+      // on future normal visits to Login.
+      sessionStorage.removeItem("sessionExpired");
+    }
+  }, []);
 
   const handleSubmit = async (event) => {
-
-    // Stop the browser from reloading the whole page
     event.preventDefault();
 
     setError("");
 
-    // Simple client side check (the backend checks again)
     if (!username.trim() || !password) {
       setError("Please enter both username and password.");
       return;
@@ -37,116 +46,147 @@ function Login() {
     setLoading(true);
 
     try {
-
       const response = await api.post("/auth/login", {
         username,
         password,
       });
 
+      // Save new JWT and user information.
+      saveAuth(
+        response.data.token,
+        response.data.user
+      );
 
-      // ---------- Save the JWT and the user ----------
-      saveAuth(response.data.token, response.data.user);
+      // --------------------------------------------------
+      // Find original destination after session expiry.
+      // --------------------------------------------------
+      const savedRedirect =
+        sessionStorage.getItem(
+          "sessionExpiredRedirect"
+        );
 
-
-      // ---------- Redirect after successful login ----------
+      // Remove it after reading.
+      sessionStorage.removeItem(
+        "sessionExpiredRedirect"
+      );
 
       const role = response.data.user.role;
 
-      if (redirectTo && !redirectTo.startsWith("/login")) {
-
-        // Return to the page the user originally wanted
-        navigate(redirectTo);
-
-      } else if (role === "admin") {
-
-        // Normal admin login
-        navigate("/admin");
-
-      } else {
-
-        // Normal student login
-        navigate("/student");
-
+      // Prefer the session-expiry destination.
+      if (
+        savedRedirect &&
+        savedRedirect.startsWith("/") &&
+        !savedRedirect.startsWith("/login")
+      ) {
+        navigate(savedRedirect, { replace: true });
       }
 
+      // Existing ProtectedRoute redirect destination.
+      else if (
+        redirectTo &&
+        !redirectTo.startsWith("/login")
+      ) {
+        navigate(redirectTo, { replace: true });
+      }
+
+      // Normal admin login.
+      else if (role === "admin") {
+        navigate("/admin", { replace: true });
+      }
+
+      // Normal student login.
+      else {
+        navigate("/student", { replace: true });
+      }
     } catch (error) {
+      // --------------------------------------------------
+      // Login 401 is NOT handled by the global session
+      // expiry interceptor because /auth/login is excluded.
+      // --------------------------------------------------
 
-      // error.response exists when the SERVER answered (400, 401, 500).
-      // It is undefined when the request never reached the server.
       if (error.response) {
-
-        setError(
-          error.response.data?.message ||
-          `Login failed (status ${error.response.status})`
-        );
-
+        if (error.response.status === 401) {
+          setError("Invalid username or password");
+        } else if (error.response.status === 403) {
+          setError(
+            "Access denied. You do not have permission to log in."
+          );
+        } else {
+          setError(
+            error.response.data?.message ||
+              `Login failed (status ${error.response.status})`
+          );
+        }
       } else {
-
+        // Network error.
         setError(
           "Cannot reach the server. Please check that the backend is running on http://localhost:3000"
         );
-
       }
-
     } finally {
-
-      // Always stop the loading state, success or failure
       setLoading(false);
-
     }
   };
 
-
   return (
-
     <>
       <Navbar />
 
       <div className="login-container">
-
         <h1>Login</h1>
 
         <p className="login-subtitle">
           Sign in to enroll in courses.
         </p>
 
+        {/* Session expired message */}
+        {sessionExpired && (
+          <p className="error">
+            Your session has expired. Please log in again.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
-
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">
+              Username
+            </label>
 
             <input
               id="username"
               type="text"
               value={username}
-              onChange={(event) => setUsername(event.target.value)}
+              onChange={(event) =>
+                setUsername(event.target.value)
+              }
               placeholder="Enter username"
               autoComplete="username"
               disabled={loading}
             />
           </div>
 
-
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">
+              Password
+            </label>
 
             <input
               id="password"
               type="password"
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
               placeholder="Enter password"
               autoComplete="current-password"
               disabled={loading}
             />
           </div>
 
-
+          {/* Login error */}
           {error && (
             <p className="error">{error}</p>
           )}
-
 
           <button
             type="submit"
@@ -154,19 +194,21 @@ function Login() {
             disabled={loading}
           >
             <FaSignInAlt />
-            {loading ? "Logging in..." : "Login"}
+
+            {loading
+              ? "Logging in..."
+              : "Login"}
           </button>
-
         </form>
-
 
         <p className="login-footer">
           Not sure where to go?{" "}
-          <Link to="/courses"><FaSearch /> Browse the courses</Link> first.
+          <Link to="/courses">
+            <FaSearch /> Browse the courses
+          </Link>{" "}
+          first.
         </p>
-
       </div>
-
     </>
   );
 }
