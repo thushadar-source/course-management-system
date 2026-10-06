@@ -1,6 +1,28 @@
-
 const Course = require("../models/courseModel");
 const User = require("../models/userModel");
+
+// Validate maximum student capacity
+const validateMaxStudents = (value) => {
+  // Blank / null / undefined = unlimited
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  // Must be a positive integer
+  if (
+    !Number.isInteger(Number(value)) ||
+    Number(value) <= 0
+  ) {
+    return false;
+  }
+
+  return Number(value);
+};
+
 
 // Get all courses
 const getAllCourses = async (req, res) => {
@@ -13,7 +35,10 @@ const getAllCourses = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error getting courses:", error.message);
+    console.error(
+      "Error getting courses:",
+      error.message
+    );
 
     res.status(500).json({
       message: "Internal server error",
@@ -41,7 +66,10 @@ const getCourseById = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error getting course:", error.message);
+    console.error(
+      "Error getting course:",
+      error.message
+    );
 
     res.status(500).json({
       message: "Internal server error",
@@ -61,42 +89,50 @@ const createCourse = async (req, res) => {
       price,
       image,
       description,
+      max_students,
     } = req.body;
 
-    // Check for duplicate course title
-    const existingCourse = await Course.findByTitle(title.trim());
+    // Basic validation
+    if (!title || !category || !level) {
+      return res.status(400).json({
+        message: "Title, category and level are required",
+      });
+    }
 
-    if (existingCourse) {
-      return res.status(409).json({
-        success: false,
-        message: "Course title already exists",
-        errors: {
-          title: "A course with this title already exists",
-        },
+    // Validate maximum students
+    const validatedMaxStudents =
+      validateMaxStudents(max_students);
+
+    if (validatedMaxStudents === false) {
+      return res.status(400).json({
+        message:
+          "Maximum students must be a positive integer",
       });
     }
 
     const courseId = await Course.create({
-      title: title.trim(),
-      category: category.trim(),
-      level: level.trim(),
+      title,
+      category,
+      level,
       duration,
       price,
       image,
       description,
+      max_students: validatedMaxStudents,
     });
 
     res.status(201).json({
-      success: true,
       message: "Course created successfully",
       courseId,
     });
 
   } catch (error) {
-    console.error("Error creating course:", error.message);
+    console.error(
+      "Error creating course:",
+      error.message
+    );
 
     res.status(500).json({
-      success: false,
       message: "Internal server error",
     });
   }
@@ -116,55 +152,72 @@ const updateCourse = async (req, res) => {
       price,
       image,
       description,
+      max_students,
     } = req.body;
 
     // Check if course exists
-    const existingCourse = await Course.getById(id);
+    const existingCourse =
+      await Course.getById(id);
 
     if (!existingCourse) {
       return res.status(404).json({
-        success: false,
         message: "Course not found",
       });
     }
 
-    // Check for duplicate title
-    const duplicateCourse = await Course.findByTitle(title.trim());
+    // Validate maximum students
+    const validatedMaxStudents =
+      validateMaxStudents(max_students);
 
-    if (duplicateCourse && duplicateCourse.id !== Number(id)) {
-      return res.status(409).json({
-        success: false,
-        message: "Course title already exists",
-        errors: {
-          title: "A course with this title already exists",
-        },
+    if (validatedMaxStudents === false) {
+      return res.status(400).json({
+        message:
+          "Maximum students must be a positive integer",
+      });
+    }
+
+    // Get current approved enrollment count
+    const enrolledCount =
+      await Course.getEnrollmentCount(id);
+
+    // Capacity cannot be lower than current enrollment
+    if (
+      validatedMaxStudents !== null &&
+      validatedMaxStudents < enrolledCount
+    ) {
+      return res.status(400).json({
+        message:
+          `Maximum students cannot be less than current enrollment (${enrolledCount})`,
       });
     }
 
     await Course.update(id, {
-      title: title.trim(),
-      category: category.trim(),
-      level: level.trim(),
+      title,
+      category,
+      level,
       duration,
       price,
       image,
       description,
+      max_students: validatedMaxStudents,
     });
 
     // Get updated course
-    const updatedCourse = await Course.getById(id);
+    const updatedCourse =
+      await Course.getById(id);
 
     res.status(200).json({
-      success: true,
       message: "Course updated successfully",
       course: updatedCourse,
     });
 
   } catch (error) {
-    console.error("Error updating course:", error.message);
+    console.error(
+      "Error updating course:",
+      error.message
+    );
 
     res.status(500).json({
-      success: false,
       message: "Internal server error",
     });
   }
@@ -177,7 +230,8 @@ const deleteCourse = async (req, res) => {
     const { id } = req.params;
 
     // Check if course exists
-    const existingCourse = await Course.getById(id);
+    const existingCourse =
+      await Course.getById(id);
 
     if (!existingCourse) {
       return res.status(404).json({
@@ -192,7 +246,10 @@ const deleteCourse = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error deleting course:", error.message);
+    console.error(
+      "Error deleting course:",
+      error.message
+    );
 
     res.status(500).json({
       message: "Internal server error",
@@ -205,7 +262,8 @@ const deleteCourse = async (req, res) => {
 const getStats = async (req, res) => {
   try {
     const courses = await Course.getAll();
-    const studentCount = await User.countByRole("student");
+    const studentCount =
+      await User.countByRole("student");
 
     res.status(200).json({
       message: "Statistics retrieved successfully",
@@ -214,7 +272,10 @@ const getStats = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error getting statistics:", error.message);
+    console.error(
+      "Error getting statistics:",
+      error.message
+    );
 
     res.status(500).json({
       message: "Internal server error",
@@ -231,4 +292,3 @@ module.exports = {
   deleteCourse,
   getStats,
 };
-

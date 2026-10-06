@@ -1426,5 +1426,42 @@ textarea.input {
 .enrollment-card-actions .btn {
   width: 100%;
 }
+/* =========================================
+   CR-007 - Course Availability
+   ========================================= */
 
+.course-availability {
+  margin-top: 12px;
+  margin-bottom: 16px;
+
+  padding: 9px 12px;
+
+  border-radius: var(--radius-sm);
+
+  font-size: 0.9rem;
+  font-weight: 600;
+
+  border: 1px solid transparent;
+}
+
+/* Limited course with available seats */
+.course-availability.available {
+  background-color: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+/* Course has reached maximum capacity */
+.course-availability.full {
+  background-color: var(--color-error-bg);
+  color: var(--color-error-text);
+  border-color: #fecaca;
+}
+
+/* Course has no maximum capacity */
+.course-availability.unlimited {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-color: #bbf7d0;
+}
 

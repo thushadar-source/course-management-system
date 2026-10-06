@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../services/api";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
+import { Link } from "react-router-dom";
 import {
   FaEdit,
   FaEye,
@@ -11,6 +9,11 @@ import {
   FaTrash,
 } from "react-icons/fa";
 
+import api from "../services/api";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
+
+
 const EMPTY_COURSE = {
   title: "",
   category: "",
@@ -19,12 +22,23 @@ const EMPTY_COURSE = {
   price: "",
   image: "",
   description: "",
+  max_students: "",
 };
 
 const LEVEL_OPTIONS = ["Beginner", "Intermediate", "Advanced"];
 
+
+async function fetchAllCourses() {
+  const response = await api.get("/courses");
+
+  return response.data.courses;
+}
+
+
 function ManageCourses() {
+
   const [courses, setCourses] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -36,54 +50,66 @@ function ManageCourses() {
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // CR-003: Search, Filter and Sort states
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [levelFilter, setLevelFilter] = useState("All");
-  const [sortField, setSortField] = useState(null);
-  const [sortDirection, setSortDirection] = useState("asc");
 
-  const fetchCourses = async () => {
-    const response = await api.get("/courses");
-    setCourses(response.data.courses || []);
-  };
-
+  // ---------- Load courses ----------
   useEffect(() => {
+
     const loadCourses = async () => {
+
       try {
-        await fetchCourses();
-      } catch (err) {
+
+        setCourses(await fetchAllCourses());
+
+      } catch (error) {
+
         setError(
-          err.response?.data?.message || "Failed to load courses"
+          error.response?.data?.message ||
+          "Failed to load courses"
         );
+
       } finally {
+
         setLoading(false);
+
       }
     };
 
     loadCourses();
+
   }, []);
 
-  const handleChange = (event) => {
-    const { name, value } = event.target;
 
-    setFormData((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
+  // ---------- Reload courses ----------
+  const refreshCourses = async () => {
+    setCourses(await fetchAllCourses());
   };
 
+
+  // ---------- Form helpers ----------
+  const handleChange = (event) => {
+
+    const { name, value } = event.target;
+
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
+
+
   const openAddForm = () => {
+
     setShowForm(true);
     setEditingId(null);
-    setFormData({ ...EMPTY_COURSE });
+    setFormData(EMPTY_COURSE);
     setFormError("");
     setError("");
     setSuccess("");
+
   };
 
+
   const openEditForm = (course) => {
-    console.log("EDIT CLICKED", course);
 
     setShowForm(true);
     setEditingId(course.id);
@@ -93,50 +119,90 @@ function ManageCourses() {
       category: course.category || "",
       level: course.level || "Beginner",
       duration: course.duration || "",
-      price: course.price ?? "",
+      price: String(course.price ?? ""),
       image: course.image || "",
       description: course.description || "",
+      max_students:
+        course.max_students === null ||
+        course.max_students === undefined
+          ? ""
+          : String(course.max_students),
     });
 
     setFormError("");
     setError("");
     setSuccess("");
+
   };
+
 
   const closeForm = () => {
+
     setShowForm(false);
     setEditingId(null);
-    setFormData({ ...EMPTY_COURSE });
+    setFormData(EMPTY_COURSE);
     setFormError("");
+
   };
 
+
+  // ---------- Create / Update ----------
   const handleSubmit = async (event) => {
+
     event.preventDefault();
 
     setFormError("");
     setError("");
     setSuccess("");
 
+
+    // Required fields
     if (
       !formData.title.trim() ||
       !formData.category.trim() ||
       !formData.level
     ) {
-      setFormError("Title, category and level are required.");
+      setFormError(
+        "Title, category and level are required."
+      );
       return;
     }
+
 
     if (!formData.duration.trim()) {
-      setFormError("Duration is required.");
+      setFormError(
+        "Duration is required (for example: 8 Weeks)."
+      );
       return;
     }
 
-    if (formData.price === "" || Number(formData.price) < 0) {
+
+    if (
+      formData.price === "" ||
+      Number(formData.price) < 0
+    ) {
       setFormError("Please enter a valid price.");
       return;
     }
 
-    const data = {
+
+    // Frontend validation for maximum students.
+    // Backend validation remains authoritative.
+    if (
+      formData.max_students !== "" &&
+      (
+        !/^\d+$/.test(formData.max_students) ||
+        Number(formData.max_students) <= 0
+      )
+    ) {
+      setFormError(
+        "Maximum students must be a positive whole number."
+      );
+      return;
+    }
+
+
+    const coursePayload = {
       title: formData.title.trim(),
       category: formData.category.trim(),
       level: formData.level,
@@ -144,34 +210,63 @@ function ManageCourses() {
       price: Number(formData.price),
       image: formData.image.trim(),
       description: formData.description.trim(),
+
+      // Blank = unlimited
+      max_students:
+        formData.max_students === ""
+          ? null
+          : Number(formData.max_students),
     };
+
 
     setSaving(true);
 
+
     try {
-      let response;
 
       if (editingId) {
-        response = await api.put(`/courses/${editingId}`, data);
+
+        const response = await api.put(
+          `/courses/${editingId}`,
+          coursePayload
+        );
+
+        setSuccess(response.data.message);
+
       } else {
-        response = await api.post("/courses", data);
+
+        const response = await api.post(
+          "/courses",
+          coursePayload
+        );
+
+        setSuccess(response.data.message);
+
       }
 
-      setSuccess(response.data.message || "Course saved successfully.");
 
       closeForm();
-      await fetchCourses();
-    } catch (err) {
+
+      await refreshCourses();
+
+    } catch (error) {
+
       setFormError(
-        err.response?.data?.message ||
-          "Could not save the course."
+        error.response?.data?.message ||
+        "Could not save the course. Please try again."
       );
+
     } finally {
+
       setSaving(false);
+
     }
   };
 
+
+  // ---------- Delete ----------
   const handleDelete = async (course) => {
+
     const confirmed = window.confirm(
       `Delete "${course.title}"? This cannot be undone.`
     );
@@ -180,161 +275,137 @@ function ManageCourses() {
       return;
     }
 
+    setError("");
+    setSuccess("");
+
+
     try {
-      const response = await api.delete(`/courses/${course.id}`);
 
-      setSuccess(
-        response.data.message || "Course deleted successfully."
+      const response = await api.delete(
+        `/courses/${course.id}`
       );
-      setError("");
 
-      await fetchCourses();
-    } catch (err) {
+      setSuccess(response.data.message);
+
+      await refreshCourses();
+
+    } catch (error) {
+
       setError(
-        err.response?.data?.message ||
-          "Could not delete the course."
+        error.response?.data?.message ||
+        "Could not delete the course."
       );
+
     }
   };
 
-  // CR-003: Get unique categories
-  const categories = [
-    "All",
-    ...new Set(
-      courses
-        .map((course) => course.category)
-        .filter(Boolean)
-    ),
-  ];
 
-  // CR-003: Search and filtering
-  const filteredCourses = courses.filter((course) => {
-    const search = searchTerm.trim().toLowerCase();
+  // ---------- Availability display ----------
+  const getAvailabilityText = (course) => {
 
-    const matchesSearch =
-      !search ||
-      String(course.id ?? "")
-        .toLowerCase()
-        .includes(search) ||
-      String(course.title ?? "")
-        .toLowerCase()
-        .includes(search) ||
-      String(course.category ?? "")
-        .toLowerCase()
-        .includes(search);
-
-    const matchesCategory =
-      categoryFilter === "All" ||
-      String(course.category ?? "").toLowerCase() ===
-        categoryFilter.toLowerCase();
-
-    const matchesLevel =
-      levelFilter === "All" ||
-      String(course.level ?? "").toLowerCase() ===
-        levelFilter.toLowerCase();
-
-    return (
-      matchesSearch &&
-      matchesCategory &&
-      matchesLevel
-    );
-  });
-
-  // CR-003: Sorting
-  const sortedCourses = [...filteredCourses].sort((a, b) => {
-    if (!sortField) {
-      return 0;
+    if (course.max_students === null) {
+      return "Unlimited";
     }
 
-    let first = a[sortField];
-    let second = b[sortField];
-
-    if (sortField === "price" || sortField === "id") {
-      first = Number(first) || 0;
-      second = Number(second) || 0;
-    } else {
-      first = String(first ?? "").toLowerCase();
-      second = String(second ?? "").toLowerCase();
+    if (Number(course.is_full) === 1) {
+      return "Course Full";
     }
 
-    if (first < second) {
-      return sortDirection === "asc" ? -1 : 1;
-    }
-
-    if (first > second) {
-      return sortDirection === "asc" ? 1 : -1;
-    }
-
-    return 0;
-  });
-
-  // CR-003: Handle column sorting
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortDirection((previous) =>
-        previous === "asc" ? "desc" : "asc"
-      );
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
+    return `${course.enrolled_count} / ${course.max_students} students`;
   };
 
-  // CR-003: Sorting indicator
-  const getSortIndicator = (field) => {
-    if (sortField !== field) {
-      return "";
+
+  const getAvailabilityClass = (course) => {
+
+    if (course.max_students === null) {
+      return "course-availability unlimited";
     }
 
-    return sortDirection === "asc" ? " ↑" : " ↓";
+    if (Number(course.is_full) === 1) {
+      return "course-availability full";
+    }
+
+    return "course-availability available";
   };
 
-  // CR-003: Reset search, filters and sorting
-  const resetFilters = () => {
-    setSearchTerm("");
-    setCategoryFilter("All");
-    setLevelFilter("All");
-    setSortField(null);
-    setSortDirection("asc");
-  };
 
   return (
+
     <>
       <Navbar />
 
       <div className="container">
+
         <div className="page-header">
+
           <div>
             <h1>Manage Courses</h1>
+
             <p className="page-subtitle">
-              Add new courses, update existing courses, or remove courses.
+              Add new courses, update the existing ones, or remove
+              courses that are no longer offered.
             </p>
           </div>
 
           <button
             type="button"
             className="btn btn-primary"
-            onClick={showForm ? closeForm : openAddForm}
+            onClick={
+              showForm
+                ? closeForm
+                : openAddForm
+            }
           >
             {showForm ? <FaTimes /> : <FaPlus />}
             {showForm ? "Cancel" : "Add Course"}
           </button>
+
         </div>
 
-        {success && <p className="success">{success}</p>}
 
-        {error && <p className="error">{error}</p>}
+        {/* Success / Error */}
+
+        {success && (
+          <p className="success">
+            {success}
+          </p>
+        )}
+
+        {error && (
+          <p className="error">
+            {error}
+          </p>
+        )}
+
+
+        {/* Add / Edit form */}
 
         {showForm && (
+
           <section className="section-card">
+
             <div className="section-card-header">
-              <h2>{editingId ? "Edit Course" : "New Course"}</h2>
+              <h2>
+                {editingId
+                  ? "Edit Course"
+                  : "New Course"}
+              </h2>
             </div>
 
-            <form className="form" onSubmit={handleSubmit}>
+
+            <form
+              className="form"
+              onSubmit={handleSubmit}
+            >
+
               <div className="form-row">
+
                 <div className="form-group">
-                  <label htmlFor="title">Title *</label>
+
+                  <label htmlFor="title">
+                    Title *
+                  </label>
+
                   <input
                     id="title"
                     className="input"
@@ -344,10 +415,16 @@ function ManageCourses() {
                     onChange={handleChange}
                     placeholder="e.g. React"
                   />
+
                 </div>
 
+
                 <div className="form-group">
-                  <label htmlFor="category">Category *</label>
+
+                  <label htmlFor="category">
+                    Category *
+                  </label>
+
                   <input
                     id="category"
                     className="input"
@@ -357,12 +434,20 @@ function ManageCourses() {
                     onChange={handleChange}
                     placeholder="e.g. Frontend"
                   />
+
                 </div>
+
               </div>
 
+
               <div className="form-row">
+
                 <div className="form-group">
-                  <label htmlFor="level">Level *</label>
+
+                  <label htmlFor="level">
+                    Level *
+                  </label>
+
                   <select
                     id="level"
                     className="input"
@@ -371,15 +456,24 @@ function ManageCourses() {
                     onChange={handleChange}
                   >
                     {LEVEL_OPTIONS.map((level) => (
-                      <option key={level} value={level}>
+                      <option
+                        key={level}
+                        value={level}
+                      >
                         {level}
                       </option>
                     ))}
                   </select>
+
                 </div>
 
+
                 <div className="form-group">
-                  <label htmlFor="duration">Duration *</label>
+
+                  <label htmlFor="duration">
+                    Duration *
+                  </label>
+
                   <input
                     id="duration"
                     className="input"
@@ -389,10 +483,16 @@ function ManageCourses() {
                     onChange={handleChange}
                     placeholder="e.g. 10 Weeks"
                   />
+
                 </div>
 
+
                 <div className="form-group">
-                  <label htmlFor="price">Price (Rs.) *</label>
+
+                  <label htmlFor="price">
+                    Price (Rs.) *
+                  </label>
+
                   <input
                     id="price"
                     className="input"
@@ -404,11 +504,46 @@ function ManageCourses() {
                     onChange={handleChange}
                     placeholder="e.g. 25000"
                   />
+
                 </div>
+
               </div>
 
+
+              {/* Maximum Students */}
+
               <div className="form-group">
-                <label htmlFor="image">Image URL</label>
+
+                <label htmlFor="max_students">
+                  Maximum Students
+                </label>
+
+                <input
+                  id="max_students"
+                  className="input"
+                  type="number"
+                  min="1"
+                  step="1"
+                  name="max_students"
+                  value={formData.max_students}
+                  onChange={handleChange}
+                  placeholder="Leave blank for Unlimited"
+                />
+
+                <small>
+                  Optional. Leave blank to allow unlimited
+                  students.
+                </small>
+
+              </div>
+
+
+              <div className="form-group">
+
+                <label htmlFor="image">
+                  Image URL
+                </label>
+
                 <input
                   id="image"
                   className="input"
@@ -418,10 +553,16 @@ function ManageCourses() {
                   onChange={handleChange}
                   placeholder="https://placehold.co/300x180?text=React"
                 />
+
               </div>
 
+
               <div className="form-group">
-                <label htmlFor="description">Description</label>
+
+                <label htmlFor="description">
+                  Description
+                </label>
+
                 <textarea
                   id="description"
                   className="input"
@@ -431,23 +572,33 @@ function ManageCourses() {
                   onChange={handleChange}
                   placeholder="Short summary of what students will learn."
                 />
+
               </div>
 
-              {formError && <p className="error">{formError}</p>}
+
+              {formError && (
+                <p className="error">
+                  {formError}
+                </p>
+              )}
+
 
               <div className="form-actions">
+
                 <button
                   type="submit"
                   className="btn btn-primary"
                   disabled={saving}
                 >
                   <FaSave />
+
                   {saving
                     ? "Saving..."
                     : editingId
-                    ? "Update Course"
-                    : "Create Course"}
+                      ? "Update Course"
+                      : "Create Course"}
                 </button>
+
 
                 <button
                   type="button"
@@ -458,264 +609,199 @@ function ManageCourses() {
                   <FaTimes />
                   Cancel
                 </button>
+
               </div>
+
             </form>
+
           </section>
+
         )}
 
+
+        {/* Course table */}
+
         <section className="section-card">
+
           <div className="section-card-header">
+
             <h2>
               All Courses
-              {courses.length > 0 ? ` (${courses.length})` : ""}
+              {courses.length > 0
+                ? ` (${courses.length})`
+                : ""}
             </h2>
 
-            <a
-              href="/admin/enrollments"
+            <Link
+              to="/admin/enrollments"
               className="link-inline"
             >
-              <FaEye /> Manage enrollments
-            </a>
+              <FaEye />
+              Manage enrollments
+            </Link>
+
           </div>
 
-          {loading && (
-            <p className="loading">Loading courses...</p>
-          )}
 
-          {!loading && courses.length === 0 && (
-            <p className="empty">
-              No courses yet. Click "Add Course" to create the first one.
+          {loading && (
+            <p className="loading">
+              Loading courses...
             </p>
           )}
 
-          {!loading && courses.length > 0 && (
-            <>
-              {/* CR-003: Search and Filter Controls */}
-              <div className="course-controls">
-                <div className="form-group">
-                  <label htmlFor="course-search">
-                    Search Courses
-                  </label>
 
-                  <input
-                    id="course-search"
-                    className="input"
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) =>
-                      setSearchTerm(event.target.value)
-                    }
-                    placeholder="Search by title, category or course ID..."
-                  />
-                </div>
+          {!loading &&
+            courses.length === 0 && (
+              <p className="empty">
+                No courses yet. Click "Add Course"
+                to create the first one.
+              </p>
+            )}
 
-                <div className="form-group">
-                  <label htmlFor="category-filter">
-                    Category
-                  </label>
 
-                  <select
-                    id="category-filter"
-                    className="input"
-                    value={categoryFilter}
-                    onChange={(event) =>
-                      setCategoryFilter(event.target.value)
-                    }
-                  >
-                    {categories.map((category) => (
-                      <option
-                        key={category}
-                        value={category}
-                      >
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          {!loading &&
+            courses.length > 0 && (
 
-                <div className="form-group">
-                  <label htmlFor="level-filter">
-                    Level
-                  </label>
+              <div className="table-wrapper">
 
-                  <select
-                    id="level-filter"
-                    className="input"
-                    value={levelFilter}
-                    onChange={(event) =>
-                      setLevelFilter(event.target.value)
-                    }
-                  >
-                    <option value="All">All</option>
+                <table className="table">
 
-                    {LEVEL_OPTIONS.map((level) => (
-                      <option key={level} value={level}>
-                        {level}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  <thead>
 
-                <div className="course-filter-actions">
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={resetFilters}
-                  >
-                    Reset Filters
-                  </button>
-                </div>
-              </div>
+                    <tr>
 
-              {/* CR-003: Result Counter */}
-              <div className="course-result-info">
-                Showing {sortedCourses.length} of {courses.length} courses
-              </div>
+                      <th>ID</th>
+                      <th>Image</th>
+                      <th>Title</th>
+                      <th>Category</th>
+                      <th>Level</th>
+                      <th>Duration</th>
+                      <th>Price</th>
+                      <th>Availability</th>
+                      <th className="table-actions-column">
+                        Actions
+                      </th>
 
-              {/* CR-003: No Results */}
-              {sortedCourses.length === 0 ? (
-                <p className="empty">
-                  No courses found matching your search or filter criteria.
-                </p>
-              ) : (
-                <div className="table-wrapper">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th>
-                          <button
-                            type="button"
-                            className="sort-button"
-                            onClick={() => handleSort("id")}
+                    </tr>
+
+                  </thead>
+
+
+                  <tbody>
+
+                    {courses.map((course) => (
+
+                      <tr key={course.id}>
+
+                        <td>
+                          {course.id}
+                        </td>
+
+
+                        <td>
+
+                          <img
+                            src={course.image}
+                            alt={course.title}
+                            className="table-thumb"
+                          />
+
+                        </td>
+
+
+                        <td>
+                          {course.title}
+                        </td>
+
+
+                        <td>
+                          {course.category}
+                        </td>
+
+
+                        <td>
+
+                          <span className="tag tag-level">
+                            {course.level}
+                          </span>
+
+                        </td>
+
+
+                        <td>
+                          {course.duration}
+                        </td>
+
+
+                        <td>
+                          Rs. {course.price}
+                        </td>
+
+
+                        <td>
+
+                          <span
+                            className={getAvailabilityClass(
+                              course
+                            )}
                           >
-                            ID{getSortIndicator("id")}
-                          </button>
-                        </th>
+                            {getAvailabilityText(
+                              course
+                            )}
+                          </span>
 
-                        <th>Image</th>
+                        </td>
 
-                        <th>
-                          <button
-                            type="button"
-                            className="sort-button"
-                            onClick={() => handleSort("title")}
-                          >
-                            Title{getSortIndicator("title")}
-                          </button>
-                        </th>
 
-                        <th>
-                          <button
-                            type="button"
-                            className="sort-button"
-                            onClick={() =>
-                              handleSort("category")
-                            }
-                          >
-                            Category{getSortIndicator("category")}
-                          </button>
-                        </th>
+                        <td>
 
-                        <th>
-                          <button
-                            type="button"
-                            className="sort-button"
-                            onClick={() => handleSort("level")}
-                          >
-                            Level{getSortIndicator("level")}
-                          </button>
-                        </th>
+                          <div className="table-actions">
 
-                        <th>
-                          <button
-                            type="button"
-                            className="sort-button"
-                            onClick={() =>
-                              handleSort("duration")
-                            }
-                          >
-                            Duration{getSortIndicator("duration")}
-                          </button>
-                        </th>
+                            <button
+                              type="button"
+                              className="btn btn-small btn-outline"
+                              onClick={() =>
+                                openEditForm(course)
+                              }
+                            >
+                              <FaEdit />
+                              Edit
+                            </button>
 
-                        <th>
-                          <button
-                            type="button"
-                            className="sort-button"
-                            onClick={() => handleSort("price")}
-                          >
-                            Price{getSortIndicator("price")}
-                          </button>
-                        </th>
 
-                        <th>Actions</th>
+                            <button
+                              type="button"
+                              className="btn btn-small btn-danger"
+                              onClick={() =>
+                                handleDelete(course)
+                              }
+                            >
+                              <FaTrash />
+                              Delete
+                            </button>
+
+                          </div>
+
+                        </td>
+
                       </tr>
-                    </thead>
 
-                    <tbody>
-                      {sortedCourses.map((course) => (
-                        <tr key={course.id}>
-                          <td>{course.id}</td>
+                    ))}
 
-                          <td>
-                            <img
-                              src={course.image}
-                              alt={course.title}
-                              className="table-thumb"
-                            />
-                          </td>
+                  </tbody>
 
-                          <td>{course.title}</td>
+                </table>
 
-                          <td>{course.category}</td>
+              </div>
 
-                          <td>
-                            <span className="tag tag-level">
-                              {course.level}
-                            </span>
-                          </td>
+            )}
 
-                          <td>{course.duration}</td>
-
-                          <td>Rs. {course.price}</td>
-
-                          <td>
-                            <div className="table-actions">
-                              <button
-                                type="button"
-                                className="btn btn-small btn-outline"
-                                onClick={() =>
-                                  openEditForm(course)
-                                }
-                              >
-                                <FaEdit />
-                                Edit
-                              </button>
-
-                              <button
-                                type="button"
-                                className="btn btn-small btn-danger"
-                                onClick={() =>
-                                  handleDelete(course)
-                                }
-                              >
-                                <FaTrash />
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </>
-          )}
         </section>
+
       </div>
 
       <Footer />
+
     </>
   );
 }

@@ -9,10 +9,24 @@ const enrollInCourse = async (req, res) => {
     // Logged-in student's ID
     const studentId = req.user.id;
 
-    // Check course ID
-    if (!courseId) {
+    // Validate course ID
+    if (
+      courseId === undefined ||
+      courseId === null ||
+      courseId === ""
+    ) {
       return res.status(400).json({
         message: "Course ID is required",
+      });
+    }
+
+    // Course ID must be a positive integer
+    if (
+      !/^\d+$/.test(String(courseId)) ||
+      Number(courseId) <= 0
+    ) {
+      return res.status(400).json({
+        message: "Invalid course ID",
       });
     }
 
@@ -38,13 +52,20 @@ const enrollInCourse = async (req, res) => {
       });
     }
 
-    // Create enrollment
-    const enrollmentId = await Enrollment.create(
-      studentId,
-      courseId
-    );
+    /*
+     * Capacity check and INSERT are handled together
+     * by the model transaction.
+     *
+     * This prevents concurrent requests from exceeding
+     * the maximum capacity.
+     */
+    const enrollmentId =
+      await Enrollment.createWithCapacity(
+        studentId,
+        courseId
+      );
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Course enrollment successful",
       enrollmentId,
     });
@@ -55,7 +76,21 @@ const enrollInCourse = async (req, res) => {
       error.message
     );
 
-    res.status(500).json({
+    // Course is already full
+    if (error.code === "COURSE_FULL") {
+      return res.status(409).json({
+        message: "Course is full. No seats are available.",
+      });
+    }
+
+    // Duplicate enrollment protection
+    if (error.code === "DUPLICATE_ENROLLMENT") {
+      return res.status(409).json({
+        message: "You are already enrolled in this course",
+      });
+    }
+
+    return res.status(500).json({
       message: "Internal server error",
     });
   }
@@ -94,27 +129,25 @@ const cancelMyEnrollment = async (req, res) => {
     const { id } = req.params;
 
     // Validate enrollment ID
-    if (!/^\d+$/.test(id) || Number(id) <= 0) {
+    if (
+      !/^\d+$/.test(id) ||
+      Number(id) <= 0
+    ) {
       return res.status(400).json({
         message: "Invalid enrollment ID",
       });
     }
 
-    // IMPORTANT:
-    // The student ID comes only from the authenticated user.
-    // We do NOT accept student ID from the client.
+    // Student ID comes only from authenticated user
     const studentId = req.user.id;
 
-    // Delete only when BOTH enrollment ID
-    // and logged-in student ID match.
-    const result = await Enrollment.deleteByStudent(
-      id,
-      studentId
-    );
+    // Delete only the logged-in student's own enrollment
+    const result =
+      await Enrollment.deleteByStudent(
+        id,
+        studentId
+      );
 
-    // This covers:
-    // 1. Enrollment does not exist
-    // 2. Enrollment belongs to another student
     if (result.affectedRows === 0) {
       return res.status(404).json({
         message: "Enrollment not found",
@@ -144,7 +177,8 @@ const getCourseEnrollments = async (req, res) => {
     const { courseId } = req.params;
 
     // Check whether course exists
-    const course = await Course.getById(courseId);
+    const course =
+      await Course.getById(courseId);
 
     if (!course) {
       return res.status(404).json({
@@ -156,7 +190,8 @@ const getCourseEnrollments = async (req, res) => {
       await Enrollment.getByCourse(courseId);
 
     res.status(200).json({
-      message: "Course enrollments retrieved successfully",
+      message:
+        "Course enrollments retrieved successfully",
       course,
       enrollments,
     });

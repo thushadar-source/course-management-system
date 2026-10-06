@@ -1,22 +1,79 @@
-
 const db = require("../config/db");
 
 const Course = {
 
-  // Get all courses
+  // Get all courses with availability information
   async getAll() {
     const [rows] = await db.execute(
-      "SELECT * FROM courses"
+      `SELECT
+          c.*,
+          COALESCE(ec.enrolled_count, 0) AS enrolled_count,
+
+          CASE
+            WHEN c.max_students IS NULL THEN NULL
+            ELSE GREATEST(
+              c.max_students - COALESCE(ec.enrolled_count, 0),
+              0
+            )
+          END AS seats_remaining,
+
+          CASE
+            WHEN c.max_students IS NULL THEN 0
+            WHEN COALESCE(ec.enrolled_count, 0) >= c.max_students THEN 1
+            ELSE 0
+          END AS is_full
+
+       FROM courses c
+
+       LEFT JOIN (
+         SELECT
+           course_id,
+           COUNT(*) AS enrolled_count
+         FROM enrollments
+         GROUP BY course_id
+       ) ec
+       ON ec.course_id = c.id
+
+       ORDER BY c.id ASC`
     );
 
     return rows;
   },
 
 
-  // Get one course
+  // Get one course with availability information
   async getById(id) {
     const [rows] = await db.execute(
-      "SELECT * FROM courses WHERE id = ?",
+      `SELECT
+          c.*,
+          COALESCE(ec.enrolled_count, 0) AS enrolled_count,
+
+          CASE
+            WHEN c.max_students IS NULL THEN NULL
+            ELSE GREATEST(
+              c.max_students - COALESCE(ec.enrolled_count, 0),
+              0
+            )
+          END AS seats_remaining,
+
+          CASE
+            WHEN c.max_students IS NULL THEN 0
+            WHEN COALESCE(ec.enrolled_count, 0) >= c.max_students THEN 1
+            ELSE 0
+          END AS is_full
+
+       FROM courses c
+
+       LEFT JOIN (
+         SELECT
+           course_id,
+           COUNT(*) AS enrolled_count
+         FROM enrollments
+         GROUP BY course_id
+       ) ec
+       ON ec.course_id = c.id
+
+       WHERE c.id = ?`,
       [id]
     );
 
@@ -24,20 +81,8 @@ const Course = {
   },
 
 
-  // Find course by title
-  async findByTitle(title) {
-    const [rows] = await db.execute(
-      "SELECT * FROM courses WHERE LOWER(title) = LOWER(?) LIMIT 1",
-      [title]
-    );
-
-    return rows[0];
-  },
-
-
-  // Create course
+  // Create a new course
   async create(course) {
-
     const {
       title,
       category,
@@ -46,12 +91,22 @@ const Course = {
       price,
       image,
       description,
+      max_students,
     } = course;
 
     const [result] = await db.execute(
       `INSERT INTO courses
-       (title, category, level, duration, price, image, description)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (
+         title,
+         category,
+         level,
+         duration,
+         price,
+         image,
+         description,
+         max_students
+       )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         title,
         category,
@@ -60,6 +115,7 @@ const Course = {
         price,
         image,
         description,
+        max_students,
       ]
     );
 
@@ -67,9 +123,8 @@ const Course = {
   },
 
 
-  // Update course
+  // Update an existing course
   async update(id, course) {
-
     const {
       title,
       category,
@@ -78,17 +133,20 @@ const Course = {
       price,
       image,
       description,
+      max_students,
     } = course;
 
     const [result] = await db.execute(
       `UPDATE courses
-       SET title = ?,
-           category = ?,
-           level = ?,
-           duration = ?,
-           price = ?,
-           image = ?,
-           description = ?
+       SET
+         title = ?,
+         category = ?,
+         level = ?,
+         duration = ?,
+         price = ?,
+         image = ?,
+         description = ?,
+         max_students = ?
        WHERE id = ?`,
       [
         title,
@@ -98,6 +156,7 @@ const Course = {
         price,
         image,
         description,
+        max_students,
         id,
       ]
     );
@@ -106,9 +165,8 @@ const Course = {
   },
 
 
-  // Delete course
+  // Delete a course
   async delete(id) {
-
     const [result] = await db.execute(
       "DELETE FROM courses WHERE id = ?",
       [id]
@@ -117,7 +175,19 @@ const Course = {
     return result;
   },
 
+
+  // Get the current approved enrollment count
+  async getEnrollmentCount(id) {
+    const [rows] = await db.execute(
+      `SELECT COUNT(*) AS enrolled_count
+       FROM enrollments
+       WHERE course_id = ?`,
+      [id]
+    );
+
+    return Number(rows[0].enrolled_count);
+  },
+
 };
 
 module.exports = Course;
-

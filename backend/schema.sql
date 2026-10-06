@@ -33,7 +33,10 @@ CREATE TABLE IF NOT EXISTS courses (
 
     image VARCHAR(500),
 
-    description TEXT
+    description TEXT,
+
+    -- NULL means unlimited capacity
+    max_students INT NULL
 );
 
 

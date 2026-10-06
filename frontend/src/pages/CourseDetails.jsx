@@ -36,16 +36,49 @@ function CourseDetails() {
   const studentLoggedIn = isStudent();
   const adminLoggedIn = isAdmin();
 
+  // ---------- Availability helpers ----------
+  const isCourseFull =
+    course &&
+    course.max_students !== null &&
+    Number(course.is_full) === 1;
+
+  const isUnlimited =
+    course &&
+    course.max_students === null;
+
+  const availabilityText = () => {
+    if (!course) {
+      return "";
+    }
+
+    if (isUnlimited) {
+      return "Unlimited";
+    }
+
+    return `${course.enrolled_count || 0} / ${course.max_students} students`;
+  };
+
+  const availabilityClass = () => {
+    if (isUnlimited) {
+      return "course-availability unlimited";
+    }
+
+    if (isCourseFull) {
+      return "course-availability full";
+    }
+
+    return "course-availability available";
+  };
+
   // ---------- Load course + enrollment state ----------
   useEffect(() => {
     const getCourse = async () => {
       try {
         setLoading(true);
         setError("");
+        setSuccess("");
 
-        const response = await api.get(
-          `/courses/${id}`
-        );
+        const response = await api.get(`/courses/${id}`);
 
         setCourse(response.data.course);
 
@@ -81,7 +114,6 @@ function CourseDetails() {
         } else {
           setEnrolled(false);
         }
-
       } catch (error) {
         setError(
           error.response?.data?.message ||
@@ -94,7 +126,6 @@ function CourseDetails() {
 
     getCourse();
   }, [id, studentLoggedIn]);
-
 
   // ---------- Enroll ----------
   const handleEnroll = async () => {
@@ -118,8 +149,38 @@ function CourseDetails() {
       // Course is now enrolled
       setEnrolled(true);
 
+      // Refresh course availability after successful enrollment
+      const courseResponse = await api.get(
+        `/courses/${id}`
+      );
+
+      setCourse(courseResponse.data.course);
     } catch (error) {
-      if (error.response?.status === 409) {
+      // Course is full
+      if (
+        error.response?.status === 409 &&
+        error.response?.data?.message
+          ?.toLowerCase()
+          .includes("full")
+      ) {
+        setError(
+          "Course is full. No seats are available."
+        );
+
+        // Refresh availability
+        try {
+          const courseResponse = await api.get(
+            `/courses/${id}`
+          );
+
+          setCourse(courseResponse.data.course);
+        } catch (refreshError) {
+          console.error(
+            "Error refreshing course:",
+            refreshError.message
+          );
+        }
+      } else if (error.response?.status === 409) {
         setEnrolled(true);
 
         setError(
@@ -135,7 +196,6 @@ function CourseDetails() {
       setEnrolling(false);
     }
   };
-
 
   // ---------- Loading ----------
   if (loading) {
@@ -154,7 +214,6 @@ function CourseDetails() {
     );
   }
 
-
   // ---------- Course not found / server error ----------
   if (error && !course) {
     return (
@@ -162,29 +221,24 @@ function CourseDetails() {
         <Navbar />
 
         <div className="container">
-
           <p className="error">
             {error}
           </p>
 
           <div className="center-actions">
-
             <Link
               to="/courses"
               className="btn btn-primary"
             >
               Back to Courses
             </Link>
-
           </div>
-
         </div>
 
         <Footer />
       </>
     );
   }
-
 
   return (
     <>
@@ -194,7 +248,6 @@ function CourseDetails() {
 
         {/* Breadcrumb */}
         <p className="breadcrumb">
-
           <Link to="/courses">
             Courses
           </Link>
@@ -202,23 +255,18 @@ function CourseDetails() {
           <span> / </span>
 
           <span>{course.title}</span>
-
         </p>
-
 
         <div className="details-layout">
 
           {/* ---------- Left: image ---------- */}
           <div className="details-image-wrapper">
-
             <img
               src={course.image}
               alt={course.title}
               className="details-image"
             />
-
           </div>
-
 
           {/* ---------- Right: information ---------- */}
           <div className="details-info">
@@ -235,14 +283,11 @@ function CourseDetails() {
 
             </div>
 
-
             <h1>{course.title}</h1>
-
 
             <p className="details-description">
               {course.description}
             </p>
-
 
             <dl className="details-list">
 
@@ -268,8 +313,31 @@ function CourseDetails() {
                 </dd>
               </div>
 
+              {/* ---------- Availability ---------- */}
+              <div>
+                <dt>Availability</dt>
+
+                <dd className={availabilityClass()}>
+                  {availabilityText()}
+                </dd>
+              </div>
+
             </dl>
 
+            {/* ---------- Full course notice ---------- */}
+            {isCourseFull && !enrolled && (
+              <div className="notice">
+                <p>
+                  <strong>Course Full</strong>
+                </p>
+
+                <p>
+                  This course has reached its maximum
+                  student capacity. No more students can
+                  enroll at the moment.
+                </p>
+              </div>
+            )}
 
             {/* ---------- Messages ---------- */}
 
@@ -284,7 +352,6 @@ function CourseDetails() {
                 {error}
               </p>
             )}
-
 
             {/* ---------- Action area ---------- */}
 
@@ -313,7 +380,6 @@ function CourseDetails() {
                 </div>
               )}
 
-
               {/* Student */}
               {studentLoggedIn && (
                 <>
@@ -329,6 +395,24 @@ function CourseDetails() {
                           in this course.
                         </p>
                       </div>
+
+                      <Link
+                        to="/my-enrollments"
+                        className="btn btn-outline"
+                      >
+                        <FaGraduationCap />
+                        My Enrollments
+                      </Link>
+                    </>
+                  ) : isCourseFull ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-lg"
+                        disabled
+                      >
+                        Course Full
+                      </button>
 
                       <Link
                         to="/my-enrollments"
@@ -364,7 +448,6 @@ function CourseDetails() {
                   )}
                 </>
               )}
-
 
               {/* Admin */}
               {adminLoggedIn && (

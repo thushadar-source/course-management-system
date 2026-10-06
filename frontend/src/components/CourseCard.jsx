@@ -3,6 +3,34 @@ import { FaEye } from "react-icons/fa";
 
 function CourseCard({ course }) {
 
+  // ---------- Availability ----------
+  const getAvailabilityText = () => {
+    // NULL means unlimited capacity
+    if (course.max_students === null) {
+      return "Unlimited";
+    }
+
+    // Course has reached maximum capacity
+    if (Number(course.is_full) === 1) {
+      return "Course Full";
+    }
+
+    // Limited course with available seats
+    return `${course.enrolled_count || 0} / ${course.max_students} students`;
+  };
+
+  const getAvailabilityClass = () => {
+    if (course.max_students === null) {
+      return "course-availability unlimited";
+    }
+
+    if (Number(course.is_full) === 1) {
+      return "course-availability full";
+    }
+
+    return "course-availability available";
+  };
+
   return (
 
     <article className="course-card">
@@ -15,10 +43,10 @@ function CourseCard({ course }) {
         loading="lazy"
       />
 
-
       <div className="course-card-body">
 
         <div className="course-card-tags">
+
           <span className="tag tag-category">
             {course.category}
           </span>
@@ -26,31 +54,38 @@ function CourseCard({ course }) {
           <span className="tag tag-level">
             {course.level}
           </span>
-        </div>
 
+        </div>
 
         <h3 className="course-card-title">
           {course.title}
         </h3>
 
-
-        {/* Short summary - we trim the long description */}
+        {/* Short summary */}
         <p className="course-card-summary">
           {course.description?.slice(0, 110)}
           {course.description?.length > 110 ? "..." : ""}
         </p>
 
-
         <ul className="course-card-meta">
+
           <li>
-            <strong>Duration:</strong> {course.duration}
+            <strong>Duration:</strong>{" "}
+            {course.duration}
           </li>
 
           <li>
-            <strong>Price:</strong> Rs. {course.price}
+            <strong>Price:</strong> Rs.{" "}
+            {course.price}
           </li>
+
         </ul>
 
+        {/* ---------- CR-007 Availability ---------- */}
+        <div className={getAvailabilityClass()}>
+          <strong>Availability:</strong>{" "}
+          {getAvailabilityText()}
+        </div>
 
         <Link
           to={`/courses/${course.id}`}

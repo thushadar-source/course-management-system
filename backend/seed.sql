@@ -1,154 +1,180 @@
 USE course_management;
 
+-- =========================
+-- USERS
+-- =========================
 
--- Seed Users
 INSERT INTO users
 (username, password, full_name, role)
 VALUES
 (
     'admin',
-    '$2b$10$C5S4lHqwweU5DK0S5GCQQe0oRcYsTL3Q56Pt0v4OymtoX.X8VGj2G',
-    'System Administrator',
+    '$2b$10$8Q8Q8Q8Q8Q8Q8Q8Q8Q8QeQ8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8',
+    'Administrator',
     'admin'
 ),
 (
     'kamal',
-    '$2b$10$C5S4lHqwweU5DK0S5GCQQe0oRcYsTL3Q56Pt0v4OymtoX.X8VGj2G',
-    'Kamal Perera',
+    '$2b$10$8Q8Q8Q8Q8Q8Q8Q8Q8Q8QeQ8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8',
+    'Kamal',
     'student'
 ),
 (
     'nimal',
-    '$2b$10$C5S4lHqwweU5DK0S5GCQQe0oRcYsTL3Q56Pt0v4OymtoX.X8VGj2G',
-    'Nimal Silva',
+    '$2b$10$8Q8Q8Q8Q8Q8Q8Q8Q8Q8QeQ8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8',
+    'Nimal',
     'student'
 ),
 (
     'saman',
-    '$2b$10$C5S4lHqwweU5DK0S5GCQQe0oRcYsTL3Q56Pt0v4OymtoX.X8VGj2G',
-    'Saman Fernando',
+    '$2b$10$8Q8Q8Q8Q8Q8Q8Q8Q8Q8QeQ8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8Q8',
+    'Saman',
     'student'
 );
 
 
--- Seed Courses
+-- =========================
+-- COURSES
+-- =========================
+
 INSERT INTO courses
-(title, category, level, duration, price, image, description)
+(title, category, level, duration, price, image, description, max_students)
 VALUES
 
 (
     'HTML & CSS',
-    'Frontend',
+    'Web Development',
     'Beginner',
-    '8 Weeks',
-    15000,
-    'https://placehold.co/300x180?text=HTML+%26+CSS',
-    'Learn the fundamentals of HTML5 and CSS3 to build modern, responsive websites.'
+    '4 Weeks',
+    15000.00,
+    '',
+    'Learn the fundamentals of HTML and CSS and build modern web pages.',
+    2
 ),
 
 (
     'JavaScript',
-    'Frontend',
+    'Programming',
     'Intermediate',
-    '10 Weeks',
-    18000,
-    'https://placehold.co/300x180?text=JavaScript',
-    'Master JavaScript, the DOM, events, ES6 features, and asynchronous programming.'
+    '6 Weeks',
+    20000.00,
+    '',
+    'Learn JavaScript programming and modern web development concepts.',
+    NULL
 ),
 
 (
     'Node.js',
     'Backend',
     'Intermediate',
-    '12 Weeks',
-    22000,
-    'https://placehold.co/300x180?text=Node.js',
-    'Build fast and scalable server-side applications using Node.js.'
+    '5 Weeks',
+    22000.00,
+    '',
+    'Learn backend development using Node.js.',
+    NULL
 ),
 
 (
     'Express.js',
     'Backend',
-    'Advanced',
-    '8 Weeks',
-    20000,
-    'https://placehold.co/300x180?text=Express.js',
-    'Create RESTful APIs and web applications using the Express framework.'
+    'Intermediate',
+    '4 Weeks',
+    18000.00,
+    '',
+    'Build web APIs and backend applications using Express.js.',
+    NULL
 ),
 
 (
     'MongoDB',
     'Database',
-    'Intermediate',
-    '6 Weeks',
-    17000,
-    'https://placehold.co/300x180?text=MongoDB',
-    'Learn NoSQL database design, CRUD operations, and MongoDB integration.'
+    'Beginner',
+    '4 Weeks',
+    17000.00,
+    '',
+    'Learn MongoDB database concepts and CRUD operations.',
+    NULL
 ),
 
 (
     'MySQL',
     'Database',
     'Beginner',
-    '6 Weeks',
-    16000,
-    'https://placehold.co/300x180?text=MySQL',
-    'Understand relational databases, SQL queries, joins, and database normalization.'
+    '4 Weeks',
+    16000.00,
+    '',
+    'Learn relational database concepts and MySQL.',
+    NULL
 ),
 
 (
     'React',
     'Frontend',
     'Advanced',
-    '10 Weeks',
-    25000,
-    'https://placehold.co/300x180?text=React',
-    'Develop modern single-page applications using React components and hooks.'
+    '6 Weeks',
+    25000.00,
+    '',
+    'Learn React and build modern frontend applications.',
+    NULL
 ),
 
 (
     'Full Stack Web Development',
-    'Full Stack',
+    'Web Development',
     'Advanced',
-    '20 Weeks',
-    45000,
-    'https://placehold.co/300x180?text=Full+Stack',
-    'Combine frontend, backend, databases, authentication, and deployment into one complete project.'
+    '12 Weeks',
+    45000.00,
+    '',
+    'Learn frontend and backend development to build full-stack applications.',
+    NULL
 );
 
 
--- Seed Enrollments
+-- =========================
+-- ENROLLMENTS
+-- =========================
 
--- User IDs:
--- 1 = admin
--- 2 = Kamal Perera
--- 3 = Nimal Silva
--- 4 = Saman Fernando
---
--- Course IDs:
--- 1 = HTML & CSS
--- 2 = JavaScript
--- 3 = Node.js
--- 4 = Express.js
--- 5 = MongoDB
--- 6 = MySQL
--- 7 = React
--- 8 = Full Stack Web Development
-
-
+-- Kamal
 INSERT INTO enrollments
 (student_id, course_id)
 VALUES
+(
+    (SELECT id FROM users WHERE username = 'kamal'),
+    (SELECT id FROM courses WHERE title = 'HTML & CSS')
+),
+(
+    (SELECT id FROM users WHERE username = 'kamal'),
+    (SELECT id FROM courses WHERE title = 'JavaScript')
+),
+(
+    (SELECT id FROM users WHERE username = 'kamal'),
+    (SELECT id FROM courses WHERE title = 'MySQL')
+);
 
--- Kamal
-(2, 1),   -- Kamal -> HTML & CSS
-(2, 2),   -- Kamal -> JavaScript
-(2, 6),   -- Kamal -> MySQL
 
 -- Nimal
-(3, 3),   -- Nimal -> Node.js
-(3, 4),   -- Nimal -> Express.js
+INSERT INTO enrollments
+(student_id, course_id)
+VALUES
+(
+    (SELECT id FROM users WHERE username = 'nimal'),
+    (SELECT id FROM courses WHERE title = 'Node.js')
+),
+(
+    (SELECT id FROM users WHERE username = 'nimal'),
+    (SELECT id FROM courses WHERE title = 'Express.js')
+);
+
 
 -- Saman
-(4, 2),   -- Saman -> JavaScript
-(4, 7);   -- Saman -> React
+INSERT INTO enrollments
+(student_id, course_id)
+VALUES
+(
+    (SELECT id FROM users WHERE username = 'saman'),
+    (SELECT id FROM courses WHERE title = 'JavaScript')
+),
+(
+    (SELECT id FROM users WHERE username = 'saman'),
+    (SELECT id FROM courses WHERE title = 'React')
+);
