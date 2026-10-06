@@ -1,101 +1,138 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { FaChartBar, FaGraduationCap, FaShoppingCart, FaSignInAlt } from "react-icons/fa";
+import {
+  FaChartBar,
+  FaGraduationCap,
+  FaShoppingCart,
+  FaSignInAlt,
+} from "react-icons/fa";
 
 import api from "../services/api";
-import { isLoggedIn, isStudent, isAdmin } from "../services/auth";
+import {
+  isLoggedIn,
+  isStudent,
+  isAdmin,
+} from "../services/auth";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
 function CourseDetails() {
-
   const { id } = useParams();
   const location = useLocation();
 
   const [course, setCourse] = useState(null);
-
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
   const [enrolling, setEnrolling] = useState(false);
+  const [enrolled, setEnrolled] = useState(false);
+  const [checkingEnrollment, setCheckingEnrollment] =
+    useState(false);
 
-
-  // Read the login state from localStorage.
+  // Read login state
   const loggedIn = isLoggedIn();
   const studentLoggedIn = isStudent();
   const adminLoggedIn = isAdmin();
 
-
-  // ---------- Load the course ----------
+  // ---------- Load course + enrollment state ----------
   useEffect(() => {
-
     const getCourse = async () => {
-
       try {
+        setLoading(true);
+        setError("");
 
-        const response = await api.get(`/courses/${id}`);
+        const response = await api.get(
+          `/courses/${id}`
+        );
 
         setCourse(response.data.course);
 
-      } catch (error) {
+        // Check whether logged-in student is enrolled
+        if (studentLoggedIn) {
+          try {
+            setCheckingEnrollment(true);
 
+            const enrollmentResponse =
+              await api.get("/enrollments/my");
+
+            const myEnrollments =
+              enrollmentResponse.data.enrollments || [];
+
+            const alreadyEnrolled =
+              myEnrollments.some(
+                (enrollment) =>
+                  String(enrollment.course_id) ===
+                  String(id)
+              );
+
+            setEnrolled(alreadyEnrolled);
+          } catch (enrollmentError) {
+            console.error(
+              "Error checking enrollment:",
+              enrollmentError.message
+            );
+
+            setEnrolled(false);
+          } finally {
+            setCheckingEnrollment(false);
+          }
+        } else {
+          setEnrolled(false);
+        }
+
+      } catch (error) {
         setError(
           error.response?.data?.message ||
-          "Failed to load course"
+            "Failed to load course"
         );
-
       } finally {
-
         setLoading(false);
-
       }
     };
 
     getCourse();
-
-  }, [id]);
+  }, [id, studentLoggedIn]);
 
 
   // ---------- Enroll ----------
   const handleEnroll = async () => {
-
     setError("");
     setSuccess("");
     setEnrolling(true);
 
     try {
+      const response = await api.post(
+        "/enrollments",
+        {
+          courseId: id,
+        }
+      );
 
-      const response = await api.post("/enrollments", {
-        // The backend reads courseId from the request body
-        courseId: id,
-      });
+      setSuccess(
+        response.data.message ||
+          "Course enrollment successful."
+      );
 
-      setSuccess(response.data.message);
+      // Course is now enrolled
+      setEnrolled(true);
 
     } catch (error) {
-
-      // 409 = already enrolled. This is expected, not a crash.
       if (error.response?.status === 409) {
+        setEnrolled(true);
 
         setError(
           "You are already enrolled in this course. You can see it in My Enrollments."
         );
-
       } else {
-
         setError(
           error.response?.data?.message ||
-          "Enrollment failed. Please try again."
+            "Enrollment failed. Please try again."
         );
-
       }
-
     } finally {
-
       setEnrolling(false);
-
     }
   };
 
@@ -105,9 +142,14 @@ function CourseDetails() {
     return (
       <>
         <Navbar />
+
         <div className="container">
-          <p className="loading">Loading course...</p>
+          <p className="loading">
+            Loading course...
+          </p>
         </div>
+
+        <Footer />
       </>
     );
   }
@@ -121,22 +163,30 @@ function CourseDetails() {
 
         <div className="container">
 
-          <p className="error">{error}</p>
+          <p className="error">
+            {error}
+          </p>
 
           <div className="center-actions">
-            <Link to="/courses" className="btn btn-primary">
+
+            <Link
+              to="/courses"
+              className="btn btn-primary"
+            >
               Back to Courses
             </Link>
+
           </div>
 
         </div>
+
+        <Footer />
       </>
     );
   }
 
 
   return (
-
     <>
       <Navbar />
 
@@ -144,39 +194,54 @@ function CourseDetails() {
 
         {/* Breadcrumb */}
         <p className="breadcrumb">
-          <Link to="/courses">Courses</Link>
+
+          <Link to="/courses">
+            Courses
+          </Link>
+
           <span> / </span>
+
           <span>{course.title}</span>
+
         </p>
 
 
         <div className="details-layout">
 
           {/* ---------- Left: image ---------- */}
-
           <div className="details-image-wrapper">
+
             <img
               src={course.image}
               alt={course.title}
               className="details-image"
             />
+
           </div>
 
 
           {/* ---------- Right: information ---------- */}
-
           <div className="details-info">
 
             <div className="course-card-tags">
-              <span className="tag tag-category">{course.category}</span>
-              <span className="tag tag-level">{course.level}</span>
+
+              <span className="tag tag-category">
+                {course.category}
+              </span>
+
+              <span className="tag tag-level">
+                {course.level}
+              </span>
+
             </div>
 
 
             <h1>{course.title}</h1>
 
 
-            <p className="details-description">{course.description}</p>
+            <p className="details-description">
+              {course.description}
+            </p>
 
 
             <dl className="details-list">
@@ -198,76 +263,126 @@ function CourseDetails() {
 
               <div>
                 <dt>Price</dt>
-                <dd className="details-price">Rs. {course.price}</dd>
+                <dd className="details-price">
+                  Rs. {course.price}
+                </dd>
               </div>
 
             </dl>
 
 
-
             {/* ---------- Messages ---------- */}
 
-            {success && <p className="success">{success}</p>}
+            {success && (
+              <p className="success">
+                {success}
+              </p>
+            )}
 
-            {error && <p className="error">{error}</p>}
+            {error && (
+              <p className="error">
+                {error}
+              </p>
+            )}
 
 
-            {/* ---------- Action area (role based) ---------- */}
+            {/* ---------- Action area ---------- */}
 
             <div className="details-actions">
 
-              {/* Not logged in: invite the visitor to login */}
+              {/* Not logged in */}
               {!loggedIn && (
                 <div className="notice">
+
                   <p>
-                    Please login as a student to enroll in this course.
+                    Please login as a student to
+                    enroll in this course.
                   </p>
 
                   <Link
                     to="/login"
-                    state={{ from: location.pathname }}
+                    state={{
+                      from: location.pathname,
+                    }}
                     className="btn btn-primary"
                   >
                     <FaSignInAlt />
                     Login to Enroll
                   </Link>
+
                 </div>
               )}
 
 
-              {/* Logged in as a student: show the Enroll button */}
+              {/* Student */}
               {studentLoggedIn && (
                 <>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-lg"
-                    onClick={handleEnroll}
-                    disabled={enrolling}
-                  >
-                    <FaShoppingCart />
-                    {enrolling ? "Enrolling..." : "Enroll Now"}
-                  </button>
+                  {checkingEnrollment ? (
+                    <p className="loading">
+                      Checking enrollment status...
+                    </p>
+                  ) : enrolled ? (
+                    <>
+                      <div className="notice">
+                        <p>
+                          You are currently enrolled
+                          in this course.
+                        </p>
+                      </div>
 
-                  <Link to="/my-enrollments" className="btn btn-outline">
-                    <FaGraduationCap />
-                    My Enrollments
-                  </Link>
+                      <Link
+                        to="/my-enrollments"
+                        className="btn btn-outline"
+                      >
+                        <FaGraduationCap />
+                        My Enrollments
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-lg"
+                        onClick={handleEnroll}
+                        disabled={enrolling}
+                      >
+                        <FaShoppingCart />
+
+                        {enrolling
+                          ? "Enrolling..."
+                          : "Enroll Now"}
+                      </button>
+
+                      <Link
+                        to="/my-enrollments"
+                        className="btn btn-outline"
+                      >
+                        <FaGraduationCap />
+                        My Enrollments
+                      </Link>
+                    </>
+                  )}
                 </>
               )}
 
 
-              {/* Logged in as an admin: explain why there is no Enroll button */}
+              {/* Admin */}
               {adminLoggedIn && (
                 <div className="notice">
+
                   <p>
-                    You are logged in as an administrator. Only students
-                    can enroll in courses.
+                    You are logged in as an administrator.
+                    Only students can enroll in courses.
                   </p>
 
-                  <Link to="/admin/courses" className="btn btn-primary">
+                  <Link
+                    to="/admin/courses"
+                    className="btn btn-primary"
+                  >
                     <FaChartBar />
                     Manage Courses
                   </Link>
+
                 </div>
               )}
 
@@ -280,10 +395,8 @@ function CourseDetails() {
       </div>
 
       <Footer />
-
     </>
   );
 }
 
 export default CourseDetails;
-

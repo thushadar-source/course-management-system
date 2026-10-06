@@ -107,7 +107,7 @@ const Enrollment = {
   },
 
 
-  // Delete enrollment
+  // Existing admin delete
   async delete(id) {
     const [result] = await db.execute(
       `DELETE FROM enrollments
@@ -118,6 +118,22 @@ const Enrollment = {
     return result;
   },
 
+
+  // Student cancellation
+  // IMPORTANT:
+  // Both enrollment ID AND student ID are checked.
+  async deleteByStudent(id, studentId) {
+    const [result] = await db.execute(
+      `DELETE FROM enrollments
+       WHERE id = ?
+       AND student_id = ?`,
+      [id, studentId]
+    );
+
+    return result;
+  },
+
 };
+
 
 module.exports = Enrollment;

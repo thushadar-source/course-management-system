@@ -1,3 +1,7 @@
+/* =========================================
+   1. Variables / base
+   ========================================= */
+
 :root {
   --color-primary: #2563eb;
   --color-primary-dark: #1d4ed8;
@@ -56,7 +60,7 @@ a:hover {
 
 
 /* =========================================
-   1. Layout containers
+   2. Layout containers
    ========================================= */
 
 .container {
@@ -71,6 +75,7 @@ a:hover {
   gap: 16px;
   align-items: flex-start;
   justify-content: space-between;
+
   margin-bottom: 28px;
 }
 
@@ -120,7 +125,7 @@ a:hover {
 
 
 /* =========================================
-   2. Buttons + icons
+   3. Buttons + icons (react-icons)
    ========================================= */
 
 .icon {
@@ -235,7 +240,7 @@ a:hover {
 
 
 /* =========================================
-   3. Navbar
+   4. Navbar
    ========================================= */
 
 .navbar {
@@ -340,6 +345,7 @@ a:hover {
   text-decoration: none;
 }
 
+/* NavLink adds the "active" class automatically */
 .nav-link.active {
   color: var(--color-primary);
   border-bottom-color: var(--color-primary);
@@ -363,7 +369,7 @@ a:hover {
 
 
 /* =========================================
-   4. Hero
+   5. Hero
    ========================================= */
 
 .hero {
@@ -441,8 +447,9 @@ a:hover {
 }
 
 
+
 /* =========================================
-   5. Statistics
+   6. Statistics strip
    ========================================= */
 
 .stats-strip {
@@ -492,7 +499,7 @@ a:hover {
 
 
 /* =========================================
-   6. Sections and features
+   7. Sections and features
    ========================================= */
 
 .section {
@@ -553,7 +560,7 @@ a:hover {
 
 
 /* =========================================
-   7. Course cards
+   8. Course cards
    ========================================= */
 
 .course-grid {
@@ -639,7 +646,7 @@ a:hover {
 
 
 /* =========================================
-   8. Tags / badges
+   9. Tags / badges
    ========================================= */
 
 .tag {
@@ -683,7 +690,7 @@ a:hover {
 
 
 /* =========================================
-   9. Forms
+   10. Forms
    ========================================= */
 
 .form {
@@ -743,11 +750,6 @@ textarea.input {
   resize: vertical;
 }
 
-
-/* =========================================
-   10. Existing filter styles
-   ========================================= */
-
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -771,157 +773,9 @@ textarea.input {
   flex: 1;
 }
 
-.filter-panel {
-  background-color: var(--color-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 18px;
-  margin-bottom: 26px;
-  box-shadow: var(--shadow);
-}
-
-.filter-controls {
-  display: grid;
-  grid-template-columns: minmax(240px, 2fr) repeat(4, minmax(130px, 1fr));
-  gap: 14px;
-  align-items: end;
-}
-
-.filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-
-.filter-field span {
-  color: var(--color-dark);
-  font-size: 0.82rem;
-  font-weight: bold;
-}
-
-.filter-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.filter-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 30px;
-  align-items: center;
-}
-
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  padding: 4px 10px;
-  background-color: #eff6ff;
-  color: #1e40af;
-  font-size: 0.8rem;
-}
-
-.clear-filters-button {
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-.clear-filters-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
 
 /* =========================================
-   11. CR-003 Course Search / Filter / Sort
-   ========================================= */
-
-.course-controls {
-  display: grid;
-  grid-template-columns: minmax(260px, 2fr) minmax(180px, 1fr) minmax(180px, 1fr) auto;
-  gap: 16px;
-
-  align-items: end;
-
-  background-color: #f8fafc;
-
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-
-  padding: 18px;
-
-  margin-bottom: 16px;
-}
-
-.course-controls .form-group {
-  min-width: 0;
-}
-
-.course-filter-actions {
-  display: flex;
-  align-items: flex-end;
-  height: 100%;
-}
-
-.course-filter-actions .btn {
-  white-space: nowrap;
-}
-
-.course-result-info {
-  margin: 0 0 18px;
-
-  color: var(--color-muted);
-
-  font-size: 0.92rem;
-  font-weight: bold;
-}
-
-.sort-button {
-  display: inline-flex;
-  align-items: center;
-
-  padding: 0;
-
-  border: none;
-  background: transparent;
-
-  color: var(--color-dark);
-
-  font-family: inherit;
-  font-size: inherit;
-  font-weight: inherit;
-  text-transform: inherit;
-  letter-spacing: inherit;
-
-  cursor: pointer;
-}
-
-.sort-button:hover {
-  color: var(--color-primary);
-}
-
-.sort-button:focus {
-  outline: none;
-  color: var(--color-primary);
-}
-
-.sort-button::after {
-  content: "";
-}
-
-.table th .sort-button {
-  min-height: 24px;
-}
-
-
-/* =========================================
-   12. Messages and states
+   11. Messages and states
    ========================================= */
 
 .error,
@@ -999,8 +853,10 @@ textarea.input {
 }
 
 
+
+
 /* =========================================
-   13. Course details
+   12. Course details page
    ========================================= */
 
 .details-layout {
@@ -1074,6 +930,7 @@ textarea.input {
   font-size: 1.25rem !important;
 }
 
+/* Keeps the role based action buttons tidy */
 .details-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1088,7 +945,7 @@ textarea.input {
 
 
 /* =========================================
-   14. Dashboard
+   13. Dashboard
    ========================================= */
 
 .dashboard-grid {
@@ -1132,7 +989,7 @@ textarea.input {
 
 
 /* =========================================
-   15. Section cards and tables
+   14. Section cards and tables
    ========================================= */
 
 .section-card {
@@ -1224,7 +1081,7 @@ textarea.input {
 
 
 /* =========================================
-   16. Quick actions
+   Quick actions
    ========================================= */
 
 .quick-actions {
@@ -1269,7 +1126,7 @@ textarea.input {
 
 
 /* =========================================
-   17. Call to action
+   Call to action
    ========================================= */
 
 .cta {
@@ -1302,7 +1159,7 @@ textarea.input {
 
 
 /* =========================================
-   18. Login page
+   Login page
    ========================================= */
 
 .login-container {
@@ -1352,7 +1209,7 @@ textarea.input {
 
 
 /* =========================================
-   19. 404 page
+   404 page
    ========================================= */
 
 .not-found {
@@ -1369,7 +1226,7 @@ textarea.input {
 
 
 /* =========================================
-   20. Footer
+   15. Footer
    ========================================= */
 
 .footer {
@@ -1439,29 +1296,10 @@ textarea.input {
 
 
 /* =========================================
-   21. Responsive - Tablet
+   16. Responsive rules
    ========================================= */
 
 @media (max-width: 900px) {
-  .filter-controls {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .filter-field-search {
-    grid-column: 1 / -1;
-  }
-
-  .course-controls {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .course-controls .form-group:first-child {
-    grid-column: 1 / -1;
-  }
-
-  .course-filter-actions {
-    align-items: flex-end;
-  }
 
   .hero-inner {
     grid-template-columns: 1fr;
@@ -1485,18 +1323,18 @@ textarea.input {
   .footer-inner {
     grid-template-columns: 1fr 1fr;
   }
+
 }
 
 
-/* =========================================
-   22. Responsive - Mobile navigation
-   ========================================= */
-
 @media (max-width: 760px) {
+
+  /* Show the hamburger button */
   .navbar-toggle {
     display: inline-flex;
   }
 
+  /* Hide the links until the menu is opened */
   .navbar-links {
     display: none;
   }
@@ -1541,45 +1379,10 @@ textarea.input {
     flex-direction: column;
   }
 
-  .course-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .course-controls .form-group:first-child {
-    grid-column: auto;
-  }
-
-  .course-filter-actions {
-    width: 100%;
-  }
-
-  .course-filter-actions .btn {
-    width: 100%;
-  }
 }
 
 
-/* =========================================
-   23. Responsive - Small mobile
-   ========================================= */
-
 @media (max-width: 600px) {
-  .filter-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .filter-field-search {
-    grid-column: auto;
-  }
-
-  .filter-summary {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .clear-filters-button {
-    align-self: flex-start;
-  }
 
   .container {
     width: 94%;
@@ -1611,19 +1414,17 @@ textarea.input {
     padding: 20px;
   }
 
-  .section-card {
-    padding: 18px;
-  }
-
-  .course-controls {
-    padding: 14px;
-  }
-
-  .course-result-info {
-    font-size: 0.85rem;
-  }
-
-  .sort-button {
-    font-size: 0.75rem;
-  }
 }
+/* Enrollment card actions */
+.enrollment-card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+}
+
+.enrollment-card-actions .btn {
+  width: 100%;
+}
+
+
