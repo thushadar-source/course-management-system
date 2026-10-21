@@ -1,333 +1,437 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { FaSearch } from "react-icons/fa";
+
+import { useEffect, useState } from "react";
+import { FaTrash } from "react-icons/fa";
 
 import api from "../services/api";
-import { getUser } from "../services/auth";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
-function MyEnrollments() {
+const INITIAL_PAGINATION = {
+  page: 1,
+  limit: 20,
+  total: 0,
+  totalPages: 0
+};
+
+function ManageEnrollments() {
+  const [courses, setCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [search, setSearch] = useState("");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [sort, setSort] = useState("date");
+  const [order, setOrder] = useState("desc");
+  const [limit, setLimit] = useState(20);
+  const [page, setPage] = useState(1);
+
   const [enrollments, setEnrollments] = useState([]);
+  const [pagination, setPagination] = useState(INITIAL_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sortOption, setSortOption] = useState("newest");
+  const [success, setSuccess] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
 
-  const user = getUser();
+  const selectedCourse = courses.find(
+    (course) => String(course.id) === selectedCourseId
+  ) || null;
 
   useEffect(() => {
-    const getEnrollments = async () => {
-      try {
-        const response = await api.get("/enrollments/my");
+    let cancelled = false;
 
-        setEnrollments(response.data.enrollments || []);
-      } catch (error) {
-        setError(
-          error.response?.data?.message ||
-            "Failed to load your enrollments"
-        );
-      } finally {
-        setLoading(false);
+    const loadCourses = async () => {
+      try {
+        const response = await api.get("/courses");
+        if (!cancelled) {
+          setCourses(response.data.courses || []);
+        }
+      } catch (err) {
+        console.error("Could not load courses:", err.message);
       }
     };
 
-    getEnrollments();
+    loadCourses();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  // Safe price conversion
-  const getSafePrice = (price) => {
-    const numericPrice = Number(price);
+  useEffect(() => {
+    let cancelled = false;
 
-    return Number.isFinite(numericPrice) ? numericPrice : 0;
+    const loadEnrollments = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const params = {
+          page,
+          limit,
+          sort,
+          order
+        };
+
+        if (search.trim()) params.q = search.trim();
+        if (selectedCourseId) params.courseId = selectedCourseId;
+        if (from) params.from = from;
+        if (to) params.to = to;
+
+        const response = await api.get("/enrollments", { params });
+
+        if (cancelled) return;
+
+        const records = response.data.enrollments || [];
+        const meta = response.data.pagination;
+
+        setEnrollments(records);
+        setPagination(meta);
+
+        // A deletion may leave the current page empty while
+        // matching records still exist on earlier pages.
+        if (records.length === 0 && meta.total > 0 && page > 1) {
+          setPage((current) => current - 1);
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        setError(
+          err.response?.data?.message || "Failed to load enrollments"
+        );
+        setEnrollments([]);
+        setPagination({
+          page,
+          limit,
+          total: 0,
+          totalPages: 0
+        });
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    loadEnrollments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    page,
+    limit,
+    sort,
+    order,
+    search,
+    selectedCourseId,
+    from,
+    to,
+    reloadKey
+  ]);
+
+  const resetPage = (setter, value) => {
+    setter(value);
+    setPage(1);
+    setSuccess("");
   };
 
-  // Summary values
-  const totalEnrolledCourses = enrollments.length;
+  const handleDelete = async (enrollment) => {
+    const name = enrollment.full_name || enrollment.username || "this student";
 
-  const totalCourseValue = enrollments.reduce(
-    (total, enrollment) => {
-      return total + getSafePrice(enrollment.price);
-    },
-    0
-  );
+    const confirmed = window.confirm(
+      `Remove ${name} from "${enrollment.title}"?`
+    );
 
-  const averageCoursePrice =
-    totalEnrolledCourses > 0
-      ? totalCourseValue / totalEnrolledCourses
-      : 0;
+    if (!confirmed) return;
 
-  const distinctCategories = new Set(
-    enrollments
-      .map((enrollment) => enrollment.category)
-      .filter((category) => category)
-  ).size;
+    setError("");
+    setSuccess("");
 
-  // Sorting
-  const sortedEnrollments = useMemo(() => {
-    const sorted = [...enrollments];
-
-    switch (sortOption) {
-      case "oldest":
-        return sorted.sort(
-          (a, b) =>
-            new Date(a.enrolled_at || 0) -
-            new Date(b.enrolled_at || 0)
-        );
-
-      case "priceHigh":
-        return sorted.sort(
-          (a, b) =>
-            getSafePrice(b.price) -
-            getSafePrice(a.price)
-        );
-
-      case "priceLow":
-        return sorted.sort(
-          (a, b) =>
-            getSafePrice(a.price) -
-            getSafePrice(b.price)
-        );
-
-      case "titleAZ":
-        return sorted.sort((a, b) => {
-          const titleA = String(a.title || "").toLowerCase();
-          const titleB = String(b.title || "").toLowerCase();
-
-          return titleA.localeCompare(titleB);
-        });
-
-      case "newest":
-      default:
-        return sorted.sort(
-          (a, b) =>
-            new Date(b.enrolled_at || 0) -
-            new Date(a.enrolled_at || 0)
-        );
+    try {
+      const response = await api.delete(`/enrollments/${enrollment.id}`);
+      setSuccess(response.data.message);
+      setReloadKey((current) => current + 1);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Could not delete the enrollment."
+      );
     }
-  }, [enrollments, sortOption]);
+  };
 
-  // Format date
   const formatDate = (value) => {
     if (!value) return "-";
-
     const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
-
-    return date.toLocaleDateString();
+    return Number.isNaN(date.getTime())
+      ? "-"
+      : date.toLocaleDateString();
   };
+
+  const startRecord =
+    pagination.total === 0 ? 0 : (page - 1) * limit + 1;
+
+  const endRecord = Math.min(page * limit, pagination.total);
+  const totalPages = pagination.totalPages;
 
   return (
     <>
       <Navbar />
 
       <div className="container">
-
         <div className="page-header">
           <div>
-            <h1>My Enrollments</h1>
-
+            <h1>Manage Enrollments</h1>
             <p className="page-subtitle">
-              {user?.full_name
-                ? `${user.full_name}, these are the courses you are enrolled in.`
-                : "These are the courses you are enrolled in."}
+              Search, filter, sort and manage student enrollments.
+            </p>
+          </div>
+        </div>
+
+        <section className="section-card">
+          <div className="filter-bar">
+            <div className="form-group">
+              <label htmlFor="enrollmentSearch">
+                Search student name or username
+              </label>
+              <input
+                id="enrollmentSearch"
+                className="input"
+                type="search"
+                value={search}
+                placeholder="Enter a name or username"
+                onChange={(event) =>
+                  resetPage(setSearch, event.target.value)
+                }
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="courseFilter">Course</label>
+              <select
+                id="courseFilter"
+                className="input"
+                value={selectedCourseId}
+                onChange={(event) =>
+                  resetPage(setSelectedCourseId, event.target.value)
+                }
+              >
+                <option value="">All courses</option>
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="dateFrom">Enrolled from</label>
+              <input
+                id="dateFrom"
+                className="input"
+                type="date"
+                value={from}
+                max={to || undefined}
+                onChange={(event) => resetPage(setFrom, event.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="dateTo">Enrolled to</label>
+              <input
+                id="dateTo"
+                className="input"
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(event) => resetPage(setTo, event.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="sortBy">Sort by</label>
+              <select
+                id="sortBy"
+                className="input"
+                value={sort}
+                onChange={(event) => resetPage(setSort, event.target.value)}
+              >
+                <option value="date">Enrollment date</option>
+                <option value="student">Student name</option>
+                <option value="course">Course name</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="sortOrder">Sort order</label>
+              <select
+                id="sortOrder"
+                className="input"
+                value={order}
+                onChange={(event) => resetPage(setOrder, event.target.value)}
+              >
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="pageSize">Records per page</label>
+              <select
+                id="pageSize"
+                className="input"
+                value={limit}
+                onChange={(event) =>
+                  resetPage(setLimit, Number(event.target.value))
+                }
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label> </label>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setSearch("");
+                  setSelectedCourseId("");
+                  setFrom("");
+                  setTo("");
+                  setSort("date");
+                  setOrder("desc");
+                  setLimit(20);
+                  setPage(1);
+                  setSuccess("");
+                }}
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {success && <p className="success">{success}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+
+        <section className="section-card">
+          <div className="section-card-header">
+            <h2>
+              {selectedCourse
+                ? `Enrollments: ${selectedCourse.title}`
+                : "All Enrollments"}
+            </h2>
+            <p>
+              Showing {startRecord}–{endRecord} of {pagination.total}
             </p>
           </div>
 
-          <Link to="/courses" className="btn btn-primary">
-            <FaSearch />
-            Browse More Courses
-          </Link>
-        </div>
+          {loading && <p className="loading">Loading enrollments...</p>}
 
-        {/* Loading */}
-        {loading && (
-          <p className="loading">
-            Loading your enrollments...
-          </p>
-        )}
+          {!loading && enrollments.length === 0 && (
+            <p className="empty">
+              {pagination.total === 0
+                ? "No enrollments match your search or filters."
+                : "No records on this page. Loading the previous page..."}
+            </p>
+          )}
 
-        {/* Error */}
-        {error && !loading && (
-          <p className="error">{error}</p>
-        )}
-
-        {!loading && !error && (
-          <>
-            {/* Summary */}
-            <div className="enrollment-summary">
-
-              <div className="summary-card">
-                <h3>Total Enrolled Courses</h3>
-                <p>{totalEnrolledCourses}</p>
-              </div>
-
-              <div className="summary-card">
-                <h3>Total Course Value</h3>
-                <p>
-                  Rs. {totalCourseValue.toFixed(2)}
-                </p>
-              </div>
-
-              <div className="summary-card">
-                <h3>Average Course Price</h3>
-                <p>
-                  Rs. {averageCoursePrice.toFixed(2)}
-                </p>
-              </div>
-
-              <div className="summary-card">
-                <h3>Course Categories</h3>
-                <p>{distinctCategories}</p>
-              </div>
-
+          {!loading && enrollments.length > 0 && (
+            <div className="table-wrapper">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Username</th>
+                    <th>Course</th>
+                    <th>Category</th>
+                    <th>Level</th>
+                    <th>Enrolled On</th>
+                    <th className="table-actions-column">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {enrollments.map((enrollment) => (
+                    <tr key={enrollment.id}>
+                      <td>{enrollment.full_name}</td>
+                      <td>{enrollment.username}</td>
+                      <td>{enrollment.title}</td>
+                      <td>{enrollment.category || "-"}</td>
+                      <td>
+                        <span className="tag tag-level">
+                          {enrollment.level || "-"}
+                        </span>
+                      </td>
+                      <td>{formatDate(enrollment.enrolled_at)}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-small btn-danger"
+                          onClick={() => handleDelete(enrollment)}
+                        >
+                          <FaTrash /> Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
 
-            {/* Sorting */}
-            <div className="enrollment-controls">
+          <div
+            className="filter-bar"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "12px",
+              flexWrap: "wrap",
+              padding: "16px 0"
+            }}
+          >
+            <p>
+              Page {page} of {totalPages} · {pagination.total} total records
+            </p>
 
-              <label htmlFor="enrollment-sort">
-                <strong>Sort By:</strong>
-              </label>
-
-              <select
-                id="enrollment-sort"
-                value={sortOption}
-                onChange={(e) =>
-                  setSortOption(e.target.value)
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={loading || page <= 1}
+                onClick={() => setPage(1)}
+              >
+                First
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={loading || page <= 1}
+                onClick={() => setPage((current) => Math.max(1, current - 1))}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={loading || page >= totalPages || totalPages === 0}
+                onClick={() =>
+                  setPage((current) => Math.min(totalPages, current + 1))
                 }
               >
-                <option value="newest">
-                  Newest Enrolled
-                </option>
-
-                <option value="oldest">
-                  Oldest Enrolled
-                </option>
-
-                <option value="priceHigh">
-                  Price: High to Low
-                </option>
-
-                <option value="priceLow">
-                  Price: Low to High
-                </option>
-
-                <option value="titleAZ">
-                  Course Title: A to Z
-                </option>
-              </select>
-
+                Next
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={loading || page >= totalPages || totalPages === 0}
+                onClick={() => setPage(totalPages)}
+              >
+                Last
+              </button>
             </div>
-
-            {/* Empty state */}
-            {enrollments.length === 0 && (
-              <div className="empty-box">
-
-                <p className="empty">
-                  You are not enrolled in any courses yet.
-                </p>
-
-                <Link
-                  to="/courses"
-                  className="btn btn-primary"
-                >
-                  <FaSearch />
-                  Find a Course
-                </Link>
-
-              </div>
-            )}
-
-            {/* Course cards */}
-            {sortedEnrollments.length > 0 && (
-              <div className="course-grid">
-
-                {sortedEnrollments.map((enrollment) => (
-                  <article
-                    className="course-card"
-                    key={enrollment.id}
-                  >
-
-                    <img
-                      src={enrollment.image}
-                      alt={enrollment.title}
-                      className="course-card-image"
-                      loading="lazy"
-                    />
-
-                    <div className="course-card-body">
-
-                      <div className="course-card-tags">
-
-                        <span className="tag tag-category">
-                          {enrollment.category}
-                        </span>
-
-                        <span className="tag tag-level">
-                          {enrollment.level}
-                        </span>
-
-                      </div>
-
-                      <h3 className="course-card-title">
-                        {enrollment.title}
-                      </h3>
-
-                      <p className="course-card-summary">
-                        {(enrollment.description || "").slice(
-                          0,
-                          100
-                        )}
-
-                        {(enrollment.description || "").length >
-                        100
-                          ? "..."
-                          : ""}
-                      </p>
-
-                      <ul className="course-card-meta">
-
-                        <li>
-                          <strong>Duration:</strong>{" "}
-                          {enrollment.duration || "-"}
-                        </li>
-
-                        <li>
-                          <strong>Price:</strong>{" "}
-                          Rs.{" "}
-                          {getSafePrice(
-                            enrollment.price
-                          ).toFixed(2)}
-                        </li>
-
-                        <li>
-                          <strong>Enrolled on:</strong>{" "}
-                          {formatDate(
-                            enrollment.enrolled_at
-                          )}
-                        </li>
-
-                      </ul>
-
-                      <Link
-                        to={`/courses/${enrollment.course_id}`}
-                        className="btn btn-outline btn-block"
-                      >
-                        View Course
-                      </Link>
-
-                    </div>
-                  </article>
-                ))}
-
-              </div>
-            )}
-          </>
-        )}
-
+          </div>
+        </section>
       </div>
 
       <Footer />
@@ -335,4 +439,4 @@ function MyEnrollments() {
   );
 }
 
-export default MyEnrollments;
+export default ManageEnrollments;
