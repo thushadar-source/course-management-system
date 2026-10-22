@@ -1,4 +1,3 @@
-
 const express = require("express");
 
 const router = express.Router();
@@ -14,7 +13,6 @@ const {
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
-const validateCourse = require("../middleware/courseValidation");
 
 
 // Get statistics (course count + student count)
@@ -41,23 +39,21 @@ router.get(
 
 
 // Admin only
-// Create course (JWT + admin role + server-side validation)
+// Create course (JWT + admin role required)
 router.post(
   "/",
   authMiddleware,
   roleMiddleware(["admin"]),
-  validateCourse,
   createCourse
 );
 
 
 // Admin only
-// Update course (JWT + admin role + server-side validation)
+// Update course (JWT + admin role required)
 router.put(
   "/:id",
   authMiddleware,
   roleMiddleware(["admin"]),
-  validateCourse,
   updateCourse
 );
 
@@ -73,4 +69,3 @@ router.delete(
 
 
 module.exports = router;
-

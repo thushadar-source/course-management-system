@@ -1465,3 +1465,99 @@ textarea.input {
   border-color: #bbf7d0;
 }
 
+/* =========================================
+   CR-009 - REPORTING AND ANALYTICS
+   ========================================= */
+
+/* Category breakdown */
+
+.cr009-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.cr009-category-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cr009-report-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+.cr009-report-label strong {
+  color: var(--color-dark);
+  white-space: nowrap;
+}
+
+.cr009-bar-track {
+  width: 100%;
+  height: 12px;
+
+  overflow: hidden;
+
+  background-color: #e2e8f0;
+  border-radius: 999px;
+}
+
+.cr009-bar-fill {
+  height: 100%;
+
+  background-color: var(--color-primary);
+  border-radius: 999px;
+
+  transition: width 0.3s ease;
+}
+
+
+/* Student enrollment date summary */
+
+.cr009-student-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.cr009-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 20px;
+
+  background-color: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.cr009-summary-item span {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.cr009-summary-item strong {
+  color: var(--color-dark);
+  font-size: 1.15rem;
+  overflow-wrap: anywhere;
+}
+
+
+/* Responsive layout */
+
+@media (max-width: 600px) {
+  .cr009-student-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .cr009-report-label {
+    align-items: flex-start;
+  }
+}
