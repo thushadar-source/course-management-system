@@ -1561,3 +1561,109 @@ textarea.input {
     align-items: flex-start;
   }
 }
+
+/* =========================================
+   CR-010 - PROFILE PAGE
+   ========================================= */
+
+.profile-page {
+  max-width: 900px;
+}
+
+.profile-card {
+  margin-bottom: 26px;
+}
+
+.profile-card .section-card-header h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile-card .section-card-header h2 svg {
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.profile-information {
+  margin: 0;
+}
+
+.profile-information-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 200px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.profile-information-row:first-child {
+  padding-top: 4px;
+}
+
+.profile-information-row:last-child {
+  border-bottom: none;
+}
+
+.profile-information-row dt {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: var(--color-muted);
+}
+
+.profile-information-row dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-dark);
+  font-weight: 600;
+}
+
+.profile-help-text {
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.field-error {
+  display: block;
+  margin-top: 3px;
+  color: var(--color-error-text);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.input[readonly] {
+  background-color: #f1f5f9;
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.profile-card .form-actions {
+  margin-top: 4px;
+}
+
+.profile-card .form-actions .btn {
+  min-height: 42px;
+}
+
+/* Responsive layout */
+@media (max-width: 600px) {
+  .profile-information-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .profile-card {
+    padding: 18px;
+  }
+
+  .profile-card .form-actions .btn {
+    width: 100%;
+  }
+}
+

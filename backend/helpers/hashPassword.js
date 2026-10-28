@@ -1,8 +1,37 @@
+
 const bcrypt = require("bcryptjs");
 
-const password = "123456";
+const BCRYPT_ROUNDS = 10;
+const BCRYPT_MAX_BYTES = 72;
 
-// 10 = bcrypt's cost/salt-round setting.
-bcrypt.hash(password, 10, (err, hash) => {
-    console.log(hash);
-});
+async function hashPassword(password) {
+  if (typeof password !== "string" || password.length === 0) {
+    throw new Error("Password is required.");
+  }
+
+  if (Buffer.byteLength(password, "utf8") > BCRYPT_MAX_BYTES) {
+    throw new Error("Password exceeds bcrypt's 72-byte maximum.");
+  }
+
+  return bcrypt.hash(password, BCRYPT_ROUNDS);
+}
+
+async function comparePassword(password, passwordHash) {
+  if (
+    typeof password !== "string" ||
+    typeof passwordHash !== "string"
+  ) {
+    return false;
+  }
+
+  if (Buffer.byteLength(password, "utf8") > BCRYPT_MAX_BYTES) {
+    return false;
+  }
+
+  return bcrypt.compare(password, passwordHash);
+}
+
+module.exports = {
+  hashPassword,
+  comparePassword,
+};

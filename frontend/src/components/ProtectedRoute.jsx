@@ -1,5 +1,5 @@
-import { Navigate, useLocation } from "react-router-dom";
 
+import { Navigate, useLocation } from "react-router-dom";
 import { getUser, getToken } from "../services/auth";
 
 function ProtectedRoute({ children, role }) {
@@ -8,48 +8,42 @@ function ProtectedRoute({ children, role }) {
   const token = getToken();
   const user = getUser();
 
-  // --------------------------------------------------
-  // 1. Not logged in
-  // --------------------------------------------------
   if (!token || !user) {
+    const requestedPath =
+      location.pathname + location.search + location.hash;
+
     return (
       <Navigate
         to="/login"
-        state={{
-          from:
-            location.pathname +
-            location.search +
-            location.hash,
-        }}
+        state={{ from: requestedPath }}
         replace
       />
     );
   }
 
-  // --------------------------------------------------
-  // 2. Logged in but wrong role
-  // --------------------------------------------------
+  // Enforce a role only when a route explicitly requires one.
   if (role && user.role !== role) {
     return (
-      <div className="access-denied-container">
-        <h1>Access Denied</h1>
+      <div className="access-denied-page">
+        <div className="access-denied-card">
+          <h1>Access denied</h1>
+          <p>You do not have permission to access this page.</p>
 
-        <p>
-          Access denied. You do not have permission
-          to access this page.
-        </p>
-
-        <p>
-          You are currently logged in as{" "}
-          <strong>{user.role}</strong>.
-        </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              window.location.href =
+                user.role === "admin" ? "/admin" : "/student";
+            }}
+          >
+            Go to my area
+          </button>
+        </div>
       </div>
     );
   }
 
-  // --------------------------------------------------
-  // 3. Authenticated and authorized
-  // --------------------------------------------------
   return children;
 }
 
