@@ -1667,3 +1667,18 @@ textarea.input {
   }
 }
 
+
+.tag-pending {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.tag-approved {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.tag-rejected {
+  background-color: #f8d7da;
+  color: #721c24;
+}

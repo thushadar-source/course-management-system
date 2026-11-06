@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import {
@@ -27,16 +28,21 @@ function CourseDetails() {
   const [success, setSuccess] = useState("");
 
   const [enrolling, setEnrolling] = useState(false);
-  const [enrolled, setEnrolled] = useState(false);
+  const [enrollmentStatus, setEnrollmentStatus] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+
   const [checkingEnrollment, setCheckingEnrollment] =
     useState(false);
 
-  // Read login state
   const loggedIn = isLoggedIn();
   const studentLoggedIn = isStudent();
   const adminLoggedIn = isAdmin();
 
-  // ---------- Availability helpers ----------
+  const enrolled =
+    enrollmentStatus === "pending" ||
+    enrollmentStatus === "approved";
+
+  // Availability helpers
   const isCourseFull =
     course &&
     course.max_students !== null &&
@@ -47,13 +53,9 @@ function CourseDetails() {
     course.max_students === null;
 
   const availabilityText = () => {
-    if (!course) {
-      return "";
-    }
+    if (!course) return "";
 
-    if (isUnlimited) {
-      return "Unlimited";
-    }
+    if (isUnlimited) return "Unlimited";
 
     return `${course.enrolled_count || 0} / ${course.max_students} students`;
   };
@@ -70,7 +72,7 @@ function CourseDetails() {
     return "course-availability available";
   };
 
-  // ---------- Load course + enrollment state ----------
+  // Load course and enrollment status
   useEffect(() => {
     const getCourse = async () => {
       try {
@@ -79,10 +81,8 @@ function CourseDetails() {
         setSuccess("");
 
         const response = await api.get(`/courses/${id}`);
-
         setCourse(response.data.course);
 
-        // Check whether logged-in student is enrolled
         if (studentLoggedIn) {
           try {
             setCheckingEnrollment(true);
@@ -93,26 +93,33 @@ function CourseDetails() {
             const myEnrollments =
               enrollmentResponse.data.enrollments || [];
 
-            const alreadyEnrolled =
-              myEnrollments.some(
-                (enrollment) =>
-                  String(enrollment.course_id) ===
-                  String(id)
-              );
+            const currentEnrollment = myEnrollments.find(
+              (enrollment) =>
+                String(enrollment.course_id) === String(id) &&
+                ["pending", "approved"].includes(enrollment.status)
+            );
 
-            setEnrolled(alreadyEnrolled);
+            setEnrollmentStatus(
+              currentEnrollment?.status || null
+            );
+
+            setRejectionReason(
+              currentEnrollment?.status === "rejected"
+                ? currentEnrollment.decision_note || ""
+                : ""
+            );
           } catch (enrollmentError) {
             console.error(
               "Error checking enrollment:",
               enrollmentError.message
             );
 
-            setEnrolled(false);
+            setEnrollmentStatus(null);
           } finally {
             setCheckingEnrollment(false);
           }
         } else {
-          setEnrolled(false);
+          setEnrollmentStatus(null);
         }
       } catch (error) {
         setError(
@@ -127,7 +134,7 @@ function CourseDetails() {
     getCourse();
   }, [id, studentLoggedIn]);
 
-  // ---------- Enroll ----------
+  // Submit enrollment request
   const handleEnroll = async () => {
     setError("");
     setSuccess("");
@@ -141,51 +148,47 @@ function CourseDetails() {
         }
       );
 
+      setEnrollmentStatus("pending");
+      setRejectionReason("");
+
       setSuccess(
         response.data.message ||
-          "Course enrollment successful."
+          "Enrollment request submitted successfully. Waiting for admin approval."
       );
 
-      // Course is now enrolled
-      setEnrolled(true);
-
-      // Refresh course availability after successful enrollment
-      const courseResponse = await api.get(
-        `/courses/${id}`
-      );
-
+      const courseResponse = await api.get(`/courses/${id}`);
       setCourse(courseResponse.data.course);
+
     } catch (error) {
-      // Course is full
-      if (
-        error.response?.status === 409 &&
-        error.response?.data?.message
-          ?.toLowerCase()
-          .includes("full")
-      ) {
+      if (error.response?.status === 409) {
         setError(
-          "Course is full. No seats are available."
+          error.response?.data?.message ||
+            "You already have a pending or approved enrollment request."
         );
 
-        // Refresh availability
+        // Refresh the actual enrollment status
         try {
-          const courseResponse = await api.get(
-            `/courses/${id}`
+          const enrollmentResponse =
+            await api.get("/enrollments/my");
+
+          const myEnrollments =
+            enrollmentResponse.data.enrollments || [];
+
+          const currentEnrollment = myEnrollments.find(
+            (enrollment) =>
+              String(enrollment.course_id) === String(id) &&
+              ["pending", "approved"].includes(enrollment.status)
           );
 
-          setCourse(courseResponse.data.course);
+          setEnrollmentStatus(
+            currentEnrollment?.status || null
+          );
         } catch (refreshError) {
           console.error(
-            "Error refreshing course:",
+            "Error refreshing enrollment:",
             refreshError.message
           );
         }
-      } else if (error.response?.status === 409) {
-        setEnrolled(true);
-
-        setError(
-          "You are already enrolled in this course. You can see it in My Enrollments."
-        );
       } else {
         setError(
           error.response?.data?.message ||
@@ -197,44 +200,33 @@ function CourseDetails() {
     }
   };
 
-  // ---------- Loading ----------
+  // Loading
   if (loading) {
     return (
       <>
         <Navbar />
-
         <div className="container">
-          <p className="loading">
-            Loading course...
-          </p>
+          <p className="loading">Loading course...</p>
         </div>
-
         <Footer />
       </>
     );
   }
 
-  // ---------- Course not found / server error ----------
+  // Course not found
   if (error && !course) {
     return (
       <>
         <Navbar />
-
         <div className="container">
-          <p className="error">
-            {error}
-          </p>
+          <p className="error">{error}</p>
 
           <div className="center-actions">
-            <Link
-              to="/courses"
-              className="btn btn-primary"
-            >
+            <Link to="/courses" className="btn btn-primary">
               Back to Courses
             </Link>
           </div>
         </div>
-
         <Footer />
       </>
     );
@@ -245,21 +237,13 @@ function CourseDetails() {
       <Navbar />
 
       <div className="container">
-
-        {/* Breadcrumb */}
         <p className="breadcrumb">
-          <Link to="/courses">
-            Courses
-          </Link>
-
+          <Link to="/courses">Courses</Link>
           <span> / </span>
-
           <span>{course.title}</span>
         </p>
 
         <div className="details-layout">
-
-          {/* ---------- Left: image ---------- */}
           <div className="details-image-wrapper">
             <img
               src={course.image}
@@ -268,11 +252,8 @@ function CourseDetails() {
             />
           </div>
 
-          {/* ---------- Right: information ---------- */}
           <div className="details-info">
-
             <div className="course-card-tags">
-
               <span className="tag tag-category">
                 {course.category}
               </span>
@@ -280,7 +261,6 @@ function CourseDetails() {
               <span className="tag tag-level">
                 {course.level}
               </span>
-
             </div>
 
             <h1>{course.title}</h1>
@@ -290,7 +270,6 @@ function CourseDetails() {
             </p>
 
             <dl className="details-list">
-
               <div>
                 <dt>Category</dt>
                 <dd>{course.category}</dd>
@@ -313,24 +292,18 @@ function CourseDetails() {
                 </dd>
               </div>
 
-              {/* ---------- Availability ---------- */}
               <div>
                 <dt>Availability</dt>
-
                 <dd className={availabilityClass()}>
                   {availabilityText()}
                 </dd>
               </div>
-
             </dl>
 
-            {/* ---------- Full course notice ---------- */}
+            {/* Course full notice */}
             {isCourseFull && !enrolled && (
               <div className="notice">
-                <p>
-                  <strong>Course Full</strong>
-                </p>
-
+                <p><strong>Course Full</strong></p>
                 <p>
                   This course has reached its maximum
                   student capacity. No more students can
@@ -339,120 +312,127 @@ function CourseDetails() {
               </div>
             )}
 
-            {/* ---------- Messages ---------- */}
-
+            {/* Success and error messages */}
             {success && (
-              <p className="success">
-                {success}
-              </p>
+              <p className="success">{success}</p>
             )}
 
             {error && (
-              <p className="error">
-                {error}
-              </p>
+              <p className="error">{error}</p>
             )}
 
-            {/* ---------- Action area ---------- */}
+            {/* Enrollment status messages */}
+            {studentLoggedIn && enrollmentStatus === "pending" && (
+              <div className="notice">
+                <p>
+                  <strong>Pending Approval</strong>
+                </p>
+                <p>
+                  Your enrollment request has been submitted.
+                  Please wait for administrator approval.
+                </p>
+              </div>
+            )}
 
+            {studentLoggedIn && enrollmentStatus === "approved" && (
+              <div className="notice">
+                <p>
+                  <strong>Enrollment Approved</strong>
+                </p>
+                <p>
+                  You are currently enrolled in this course.
+                </p>
+              </div>
+            )}
+
+            {studentLoggedIn && rejectionReason && (
+              <div className="notice">
+                <p>
+                  <strong>Previous Request Rejected</strong>
+                </p>
+                <p>Reason: {rejectionReason}</p>
+                <p>
+                  You may submit a new enrollment request.
+                </p>
+              </div>
+            )}
+
+            {/* Actions */}
             <div className="details-actions">
-
-              {/* Not logged in */}
               {!loggedIn && (
                 <div className="notice">
-
                   <p>
-                    Please login as a student to
-                    enroll in this course.
+                    Please login as a student to enroll
+                    in this course.
                   </p>
 
                   <Link
                     to="/login"
-                    state={{
-                      from: location.pathname,
-                    }}
+                    state={{ from: location.pathname }}
                     className="btn btn-primary"
                   >
                     <FaSignInAlt />
                     Login to Enroll
                   </Link>
-
                 </div>
               )}
 
-              {/* Student */}
               {studentLoggedIn && (
                 <>
                   {checkingEnrollment ? (
                     <p className="loading">
                       Checking enrollment status...
                     </p>
-                  ) : enrolled ? (
-                    <>
-                      <div className="notice">
-                        <p>
-                          You are currently enrolled
-                          in this course.
-                        </p>
-                      </div>
-
-                      <Link
-                        to="/my-enrollments"
-                        className="btn btn-outline"
-                      >
-                        <FaGraduationCap />
-                        My Enrollments
-                      </Link>
-                    </>
+                  ) : enrollmentStatus === "pending" ? (
+                    <Link
+                      to="/my-enrollments"
+                      className="btn btn-outline"
+                    >
+                      <FaGraduationCap />
+                      View My Enrollments
+                    </Link>
+                  ) : enrollmentStatus === "approved" ? (
+                    <Link
+                      to="/my-enrollments"
+                      className="btn btn-outline"
+                    >
+                      <FaGraduationCap />
+                      My Enrollments
+                    </Link>
                   ) : isCourseFull ? (
-                    <>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-lg"
-                        disabled
-                      >
-                        Course Full
-                      </button>
-
-                      <Link
-                        to="/my-enrollments"
-                        className="btn btn-outline"
-                      >
-                        <FaGraduationCap />
-                        My Enrollments
-                      </Link>
-                    </>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-lg"
+                      disabled
+                    >
+                      Course Full
+                    </button>
                   ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="btn btn-primary btn-lg"
-                        onClick={handleEnroll}
-                        disabled={enrolling}
-                      >
-                        <FaShoppingCart />
-
-                        {enrolling
-                          ? "Enrolling..."
-                          : "Enroll Now"}
-                      </button>
-
-                      <Link
-                        to="/my-enrollments"
-                        className="btn btn-outline"
-                      >
-                        <FaGraduationCap />
-                        My Enrollments
-                      </Link>
-                    </>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-lg"
+                      onClick={handleEnroll}
+                      disabled={enrolling}
+                    >
+                      <FaShoppingCart />
+                      {enrolling
+                        ? "Submitting..."
+                        : "Submit Enrollment Request"}
+                    </button>
                   )}
+
+                  <Link
+                    to="/my-enrollments"
+                    className="btn btn-outline"
+                  >
+                    <FaGraduationCap />
+                    My Enrollments
+                  </Link>
                 </>
               )}
 
-              {/* Admin */}
               {adminLoggedIn && (
                 <div className="notice">
-
                   <p>
                     You are logged in as an administrator.
                     Only students can enroll in courses.
@@ -465,16 +445,11 @@ function CourseDetails() {
                     <FaChartBar />
                     Manage Courses
                   </Link>
-
                 </div>
               )}
-
             </div>
-
           </div>
-
         </div>
-
       </div>
 
       <Footer />

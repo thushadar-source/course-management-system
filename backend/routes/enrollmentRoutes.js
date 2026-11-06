@@ -1,3 +1,4 @@
+
 const express = require("express");
 
 const router = express.Router();
@@ -9,13 +10,16 @@ const {
   getAllEnrollments,
   deleteEnrollment,
   cancelMyEnrollment,
+  approveEnrollment,
+  rejectEnrollment
 } = require("../controllers/enrollmentController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
-// Student (JWT + student role required)
-// Enroll in a course
+// Student routes
+
+// Submit enrollment request
 router.post(
   "/",
   authMiddleware,
@@ -23,8 +27,7 @@ router.post(
   enrollInCourse
 );
 
-// Student (JWT + student role required)
-// View my enrolled courses
+// View own enrollment requests
 router.get(
   "/my",
   authMiddleware,
@@ -32,8 +35,7 @@ router.get(
   getMyEnrollments
 );
 
-// Student (JWT + student role required)
-// Cancel my own enrollment
+// Cancel own pending enrollment request
 router.delete(
   "/my/:id",
   authMiddleware,
@@ -41,8 +43,9 @@ router.delete(
   cancelMyEnrollment
 );
 
-// Admin (JWT + admin role required)
-// View all enrollments
+// Admin routes
+
+// View all enrollments with search, filters and pagination
 router.get(
   "/",
   authMiddleware,
@@ -50,8 +53,7 @@ router.get(
   getAllEnrollments
 );
 
-// Admin (JWT + admin role required)
-// View students enrolled in a course
+// View enrollments for a specific course
 router.get(
   "/course/:courseId",
   authMiddleware,
@@ -59,7 +61,22 @@ router.get(
   getCourseEnrollments
 );
 
-// Admin (JWT + admin role required)
+// Approve a pending enrollment request
+router.put(
+  "/:id/approve",
+  authMiddleware,
+  roleMiddleware(["admin"]),
+  approveEnrollment
+);
+
+// Reject a pending enrollment request
+router.put(
+  "/:id/reject",
+  authMiddleware,
+  roleMiddleware(["admin"]),
+  rejectEnrollment
+);
+
 // Delete an enrollment
 router.delete(
   "/:id",
